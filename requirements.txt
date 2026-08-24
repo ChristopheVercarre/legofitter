@@ -1,0 +1,31 @@
+# LegoFitter dependencies, grouped by the phase that needs them.
+# Install everything now with `pip install -r requirements.txt`, or install
+# a phase's block as you reach it — nothing here is required before Phase 1.
+
+# --- Core (all phases) ---
+python-dotenv==1.0.1
+numpy==1.26.4
+pandas==2.2.2
+Pillow==10.4.0
+opencv-python==4.10.0.84
+matplotlib==3.9.0
+tqdm==4.66.4
+PyYAML==6.0.1
+
+# --- Phase 1: Classification (custom CNN, tf.keras) ---
+tensorflow==2.16.1
+scikit-learn==1.5.0
+
+# --- Phase 2: Object Detection (YOLOv5, PyTorch) ---
+# YOLOv5 itself is pulled in as a git clone (see README, Phase 2 setup) since
+# training relies on its own train.py/val.py scripts, which are PyTorch —
+# a different framework from Phase 1's tf.keras, and that's fine, they don't
+# need to interoperate until Phase 3's inference pipeline. These are the
+# libs YOLOv5 needs on top of the core deps above:
+torch==2.3.1
+torchvision==0.18.1
+seaborn==0.13.2
+thop==0.1.1.post2209072238
+
+# --- Bonus: Rebrickable API ---
+requests==2.32.3

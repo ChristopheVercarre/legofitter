@@ -6,3 +6,19 @@ __pycache__/
 *.pt
 *.pth
 *.h5
+*.keras
+
+# secrets
+.env
+
+# trained artifacts / experiment outputs
+/models/*
+!/models/.gitkeep
+runs/
+wandb/
+
+# third-party YOLOv5 clone (Phase 2)
+/yolov5/
+
+# notebooks checkpoints
+.ipynb_checkpoints/
