@@ -32,7 +32,7 @@ LegoFitter/
 ├── requirements.txt        # deps, grouped by phase
 ├── main_local.py            # CLI entry point, one subcommand per step below
 ├── app/
-│   ├── config.py               # all paths/constants, read from .env
+│   ├── params.py               # all paths/constants, read from .env
 │   ├── classification/          # Objective 1
 │   │   ├── dataset.py               # step 1: 50-class subset + DataLoader
 │   │   ├── model.py                 # step 2a: our custom CNN

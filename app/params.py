@@ -1,5 +1,5 @@
 """
-Central config for LegoFitter, loaded from environment variables (see .env.example).
+Central params for LegoFitter, loaded from environment variables (see .env.example).
 
 Every other module should read paths/constants from here rather than
 hardcoding them, so the whole project stays configurable from one file + .env.
