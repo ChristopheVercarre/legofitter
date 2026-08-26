@@ -42,13 +42,13 @@ def load_model() -> keras.Model:
     Return None (but do not Raise) if no model is found
     """
 
-    client = google.cloud.storage.Client()
+    client = storage.Client()
     blobs = list(client.get_bucket(BUCKET_NAME).list_blobs(prefix="model"))
 
     try:
         latest_blob = max(blobs, key=lambda x: x.updated)
         latest_model_path_to_save = os.path.join(
-            MODELS_DIR, latest_blob.name)
+            PROJECT_ROOT, latest_blob.name)
         latest_blob.download_to_filename(latest_model_path_to_save)
 
         latest_model = keras.models.load_model(latest_model_path_to_save)
