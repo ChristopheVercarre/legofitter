@@ -22,7 +22,7 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-
+import subprocess
 from app.params import (
     BATCH_SIZE,
     CLASS_NAMES_PATH,
@@ -36,6 +36,50 @@ from app.params import (
     VAL_SIZE,
 )
 
+GCS_CLASSIFICATION_DATA = (
+    "gs://legofitter-datasets/lego-dataset-classification"
+)
+
+
+def ensure_local_data():
+    """
+    Vérifie si les données de classification existent en local.
+
+    - Si elles existent et ne sont pas vides -> ne fait rien
+    - Sinon -> télécharge les données depuis GCS
+    """
+
+    data_exists = (
+        CLASSIFICATION_DATA_DIR.exists()
+        and any(CLASSIFICATION_DATA_DIR.iterdir())
+    )
+
+    if data_exists:
+        print(f"✅ Dataset déjà présent : {CLASSIFICATION_DATA_DIR}")
+        return
+
+    print("⬇️ Dataset absent en local.")
+    print("Téléchargement depuis GCS...")
+
+    # S'assurer que le dossier data existe
+    CLASSIFICATION_DATA_DIR.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    subprocess.run(
+        [
+            "gcloud",
+            "storage",
+            "cp",
+            "--recursive",
+            GCS_CLASSIFICATION_DATA,
+            str(CLASSIFICATION_DATA_DIR.parent),
+        ],
+        check=True
+    )
+
+    print("✅ Dataset téléchargé avec succès.")
 
 def select_classes(num_classes: int = NUM_CLASSES) -> list[str]:
     """Return the `num_classes` part IDs that have the most real photos.
@@ -213,6 +257,8 @@ def get_datasets(
     num_classes: int = NUM_CLASSES,
     render_ratio: float | None = RENDER_PHOTO_RATIO,
 ):
+
+
     """Run the whole chain: disk -> (train, val, test) tf.data.Datasets.
 
     `render_ratio` caps renders per class in the training split (None = keep
@@ -225,6 +271,10 @@ def get_datasets(
         _, _, test_ds, (_, _, test_df) = get_datasets()
         photos_ds = create_dataset(test_df[test_df["source"] == "photos"])
     """
+
+    # Vérifie automatiquement les données avant de continuer
+    ensure_local_data()
+
     dataframe = build_dataframe(select_classes(num_classes))
     dataframe, _encoder = encode_labels(dataframe)
 
