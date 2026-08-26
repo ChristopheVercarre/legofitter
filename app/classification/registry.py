@@ -18,7 +18,7 @@ def save_model(model: keras.Model = None) -> None:
 
     # Save model locally
 
-    model_path = os.path.join(MODELS_DIR, f"{timestamp}.h5")
+    model_path = os.path.join(MODELS_DIR, f"{timestamp}.keras")
 
     model.save(model_path)
 
@@ -42,7 +42,7 @@ def load_model() -> keras.Model:
     Return None (but do not Raise) if no model is found
     """
 
-    client = storage.Client()
+    client = google.cloud.storage.Client()
     blobs = list(client.get_bucket(BUCKET_NAME).list_blobs(prefix="model"))
 
     try:
