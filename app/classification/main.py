@@ -12,7 +12,7 @@ don't want this run, change arguments in place, rerun.
 """
 
 from app.classification.dataset import get_datasets
-from app.classification.evaluate import evaluate
+from app.classification.evaluate import evaluate, summarise
 from app.classification.predict import predict_image
 from app.classification.train import describe_splits, train_model
 
@@ -45,5 +45,6 @@ def predict(image_path: str, top_k: int = 3) -> None:
 if __name__ == "__main__":
     prepare_data()
     train_model()
-    evaluate()
+    test_all, test_photos = evaluate()
+    summarise(test_all, test_photos)
     # predict("path/to/a/brick/photo.jpg")  # uncomment once a model exists
