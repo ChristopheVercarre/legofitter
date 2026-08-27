@@ -7,6 +7,7 @@ three `tf.data.Dataset` objects that train.py / evaluate.py consume.
 Pipeline, in order:
     select_classes()   -> the NUM_CLASSES part IDs with the most real photos
     build_dataframe()  -> one row per image (image_path, label, source)
+    filter_blurry()    -> drop photos below the sharpness threshold
     encode_labels()    -> label column becomes int codes; class names persisted
     split_dataframe()  -> stratified train / val / test DataFrames
     create_dataset()   -> DataFrame -> batched, prefetched tf.data.Dataset
@@ -16,6 +17,7 @@ train.py. `load_class_names()` is the inverse used at inference time
 (Objective 3) to map a predicted class index back to a LEGO part ID.
 """
 
+import cv2
 import json
 
 import pandas as pd
@@ -25,6 +27,7 @@ from sklearn.preprocessing import LabelEncoder
 import subprocess
 from app.params import (
     BATCH_SIZE,
+    BLUR_VARIANCE_THRESHOLD,
     CLASS_NAMES_PATH,
     CLASSIFICATION_DATA_DIR,
     IMG_SIZE,
@@ -117,6 +120,53 @@ def build_dataframe(classes: list[str] | None = None) -> pd.DataFrame:
                 )
 
     return pd.DataFrame(rows)
+
+
+def is_blurry(image_path: str, threshold: float = BLUR_VARIANCE_THRESHOLD) -> bool:
+    """True if image_path's sharpness falls below threshold.
+
+    Uses the variance of the Laplacian: a crisp image has lots of
+    high-frequency edge content and a high variance, a blurry one is
+    smoother and scores lower. See BLUR_VARIANCE_THRESHOLD in params.py.
+    """
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        # Unreadable/corrupt file: treat as blurry so it gets dropped here
+        # instead of crashing tf.io.decode_jpeg() later in create_dataset().
+        return True
+    return cv2.Laplacian(img, cv2.CV_64F).var() < threshold
+
+
+def filter_blurry(
+    dataframe: pd.DataFrame,
+    threshold: float = BLUR_VARIANCE_THRESHOLD,
+) -> pd.DataFrame:
+    """Drop rows whose image is blurry (see is_blurry()).
+
+    Only photos are checked -- renders are computer-generated and never
+    blurry. Files stay on disk untouched; only the returned DataFrame
+    excludes the blurry rows, so this is safe to re-run with a different
+    threshold at any time.
+    """
+    dataframe = dataframe.reset_index(drop=True)
+    is_photo = dataframe["source"] == "photos"
+
+    # .loc (not plain bracket assignment) on both sides: assigning through a
+    # boolean-mask __setitem__ silently upcasts `blurry` away from bool,
+    # which then breaks the `~blurry` negation below.
+    blurry = pd.Series(False, index=dataframe.index, dtype=bool)
+    blurry.loc[is_photo] = dataframe.loc[is_photo, "image_path"].apply(
+        lambda path: is_blurry(path, threshold)
+    ).astype(bool)
+
+    dropped = int(blurry.sum())
+    if dropped:
+        print(
+            f"filter_blurry: dropping {dropped} blurry photo(s) "
+            f"(threshold={threshold}) out of {int(is_photo.sum())} photos"
+        )
+
+    return dataframe[~blurry].reset_index(drop=True)
 
 
 def encode_labels(dataframe: pd.DataFrame, persist: bool = True):
@@ -276,6 +326,7 @@ def get_datasets(
     ensure_local_data()
 
     dataframe = build_dataframe(select_classes(num_classes))
+    dataframe = filter_blurry(dataframe)
     dataframe, _encoder = encode_labels(dataframe)
 
     train_df, val_df, test_df = split_dataframe(dataframe)
