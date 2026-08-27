@@ -42,6 +42,18 @@ SOURCE_PATTERNS = {
     "renders": "*.jpeg",
 }
 
+# Variance of the Laplacian, used by dataset.py's is_blurry(). Sharp images
+# have lots of high-frequency edge content (high variance); blurry ones are
+# smoother (low variance) -- but so are sharp photos of plain, low-texture
+# grey pieces, so this doesn't cleanly separate "blurry" from "sharp but
+# plain": a 400-photo sample of the real dataset has a median score of ~21
+# with no obvious gap, and 5 hand-picked blurry examples scored 4.9-14.8.
+# 6 is the conservative choice -- catches only the most severely blurry
+# photos. See notebooks/datascientist_deliverable.ipynb (Blur filtering
+# section) to preview what a higher threshold would additionally flag
+# before raising this.
+BLUR_VARIANCE_THRESHOLD = 10
+
 # Max renders kept per class, as a multiple of that class's photo count.
 # 650/350 = 1.857 is the render:photo ratio Boiński et al. (Sci Data 2023)
 # used for their baseline training set. Set to None to train on the raw
