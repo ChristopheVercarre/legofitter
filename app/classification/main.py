@@ -25,7 +25,7 @@ def prepare_data() -> None:
     training split, does every split have a sensible photos/renders mix.
 
     Side effect worth knowing about: get_datasets() writes CLASS_NAMES_PATH
-    (models/class_names.json) as it runs -- so this also happens to be what
+    (models/current/class_names.json) as it runs -- so this also happens to be what
     makes `predict` able to translate a class index back into a part ID,
     even before a model has been trained on this machine.
     """

@@ -93,12 +93,16 @@ def select_classes(num_classes: int = NUM_CLASSES) -> list[str]:
     photos_dir = CLASSIFICATION_DATA_DIR / "photos"
 
     counts = {}
-    for class_dir in photos_dir.iterdir():
+    # sorted() so ties in photo count resolve the same way on every machine:
+    # dict insertion order would otherwise follow filesystem listing order,
+    # which differs between macOS and Linux -- and a tie at the NUM_CLASSES
+    # boundary would then pick DIFFERENT classes on the Mac vs the VM.
+    for class_dir in sorted(photos_dir.iterdir()):
         if class_dir.is_dir():
             counts[class_dir.name] = len(
                 list(class_dir.glob(SOURCE_PATTERNS["photos"])))
 
-    ranked = sorted(counts, key=counts.get, reverse=True)
+    ranked = sorted(counts, key=lambda name: (-counts[name], name))
     return ranked[:num_classes]
 
 
@@ -108,9 +112,15 @@ def build_dataframe(classes: list[str] | None = None) -> pd.DataFrame:
         classes = select_classes()
 
     rows = []
+    # sorted() on the glob is what makes the SPLITS reproducible across
+    # machines: train_test_split(random_state=42) only gives the same split
+    # for the same ROW ORDER, and glob returns files in filesystem order --
+    # which differs between the Mac (APFS) and the VM (ext4). Without this,
+    # a model trained on the VM and evaluated on the Mac would be scored on
+    # a test split that overlaps the VM's training data.
     for label in classes:
         for source, pattern in SOURCE_PATTERNS.items():
-            for img in (CLASSIFICATION_DATA_DIR / source / label).glob(pattern):
+            for img in sorted((CLASSIFICATION_DATA_DIR / source / label).glob(pattern)):
                 rows.append(
                     {
                         "image_path": str(img),
@@ -288,7 +298,7 @@ def create_dataset(dataframe: pd.DataFrame, training: bool = False) -> tf.data.D
     dataset = tf.data.Dataset.from_tensor_slices((image_paths, labels))
 
     # Shuffle BEFORE decoding: the buffer then holds file paths (a few MB)
-    # rather than decoded images (buffer_size * 128*128*3 floats — gigabytes).
+    # rather than decoded images (buffer_size * H*W*3 floats — gigabytes).
     if training:
         dataset = dataset.shuffle(
             buffer_size=len(dataframe),

@@ -63,7 +63,7 @@ SOURCE_PATTERNS = {
 # photos. See notebooks/datascientist_deliverable.ipynb (Blur filtering
 # section) to preview what a higher threshold would additionally flag
 # before raising this.
-BLUR_VARIANCE_THRESHOLD = 10
+BLUR_VARIANCE_THRESHOLD = 6
 
 # Max renders kept per class, as a multiple of that class's photo count.
 # 650/350 = 1.857 is the render:photo ratio Boiński et al. (Sci Data 2023)

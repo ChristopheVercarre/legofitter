@@ -62,7 +62,21 @@ def predict_image(
     if model is None:
         model = load_trained_model()
 
-    class_names = load_class_names()
+    # The class list attached to the model at load time is the one that was
+    # sitting in the same folder as its .keras file -- the pairing
+    # save_model()/load_model() guarantee. Only a model that arrived here
+    # WITHOUT that attribute (loaded by hand, not through load_trained_model
+    # or registry.load_model) falls back to the current working-state file,
+    # which is a guess about which run it belongs to.
+    class_names = getattr(model, "class_names", None)
+    if class_names is None:
+        print(
+            "⚠️  Model has no attached class names -- falling back to the "
+            "current working-state class_names.json, which may not match "
+            "this model. Load models via registry.load_model() or "
+            "evaluate.load_trained_model() to avoid this."
+        )
+        class_names = load_class_names()
     img = load_image_for_prediction(image_path)
     # model.predict() expects a BATCH of images, i.e. shape (batch, H, W, 3).
     # tf.expand_dims adds that batch dimension of 1 for our single image.
