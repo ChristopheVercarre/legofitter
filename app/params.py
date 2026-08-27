@@ -16,7 +16,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / os.getenv("DATA_DIR", "data")
 MODELS_DIR = PROJECT_ROOT / os.getenv("MODELS_DIR", "models")
 
-IMG_SIZE = (128, 128)
+# Square input size for the CNN, in pixels. Read from the environment so the
+# Mac and the VM can disagree (.env is gitignored) and so a single run can
+# override it:  make run_vm IMG_SIZE=256
+_img_px = int(os.getenv("IMG_SIZE", 128))
+IMG_SIZE = (_img_px, _img_px)
 BATCH_SIZE = 32
 
 RANDOM_STATE = 42  # seed for every split / subsample, so runs are comparable
