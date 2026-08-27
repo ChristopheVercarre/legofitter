@@ -35,7 +35,7 @@ def load_trained_model():
     There are two places a trained model can live, and they answer
     different questions:
 
-      - CLASSIFICATION_MODEL_PATH (models/classifier.keras) is the checkpoint
+      - CLASSIFICATION_MODEL_PATH (models/current/classifier.keras) is the checkpoint
         THIS machine's train.py just wrote via ModelCheckpoint. Loading it is
         free (no network call) and it's the freshest thing this machine has
         trained.
@@ -53,7 +53,14 @@ def load_trained_model():
     """
     if CLASSIFICATION_MODEL_PATH.exists():
         print(f"Loading local checkpoint: {CLASSIFICATION_MODEL_PATH}")
-        return load_keras_model(CLASSIFICATION_MODEL_PATH)
+        model = load_keras_model(CLASSIFICATION_MODEL_PATH)
+        # Pair the model with the class list sitting NEXT TO IT, and carry the
+        # pair as one object. predict_image() reads model.class_names, so the
+        # mapping travels with the model instead of being looked up from
+        # global state at prediction time -- see registry.load_model(), which
+        # attaches it the same way.
+        registry.attach_class_names(model, CLASSIFICATION_MODEL_PATH.parent)
+        return model
 
     print(f"No local checkpoint at {CLASSIFICATION_MODEL_PATH} -- checking the GCS bucket instead.")
     model = registry.load_model()

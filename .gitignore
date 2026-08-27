@@ -102,7 +102,6 @@ ipython_config.py
 notebooks/*
 raw_data/*
 processed_data/*
-!model/.gitkeep
 !processed_data/.gitkeep
 !raw_data/.gitkeep
 *.ipynb

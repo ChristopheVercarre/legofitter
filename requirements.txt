@@ -13,7 +13,13 @@ tqdm==4.66.4
 PyYAML==6.0.1
 
 # --- Phase 1: Classification (custom CNN, tf.keras) ---
-tensorflow==2.16.1
+# Linux gets the [and-cuda] extra, which pulls the CUDA 12.3 / cuDNN wheels
+# the GPU needs. Plain `tensorflow` on Linux imports fine but silently falls
+# back to CPU -- 'Cannot dlopen some GPU libraries ... Skipping registering
+# GPU devices' is the only warning you get. macOS has no CUDA at all, and
+# uses tensorflow-metal below instead.
+tensorflow[and-cuda]==2.16.1; sys_platform == 'linux'
+tensorflow==2.16.1; sys_platform != 'linux'
 scikit-learn==1.5.0
 scikit-image
 google-cloud-storage==2.14.0
