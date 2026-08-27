@@ -30,14 +30,16 @@ LegoFitter/
 ├── .env.example          # template, committed
 ├── .envrc                 # direnv: loads .env, sets PYTHONPATH
 ├── requirements.txt        # deps, grouped by phase
-├── main_local.py            # CLI entry point, one subcommand per step below
 ├── app/
 │   ├── params.py               # all paths/constants, read from .env
 │   ├── classification/          # Objective 1
 │   │   ├── dataset.py               # step 1: 50-class subset + DataLoader
 │   │   ├── model.py                 # step 2a: our custom CNN
 │   │   ├── train.py                 # step 2b: training loop
-│   │   └── evaluate.py              # step 3: accuracy scoring
+│   │   ├── evaluate.py              # step 3: accuracy scoring
+│   │   ├── predict.py               # step 4: classify one image
+│   │   ├── registry.py              # save/load a model to/from the GCS bucket
+│   │   └── main.py                  # CLI: prepare-data / train / evaluate / predict
 │   ├── detection/                # Objective 2
 │   │   ├── prepare_data.py          # step 1: VOC XML -> YOLOv5 format
 │   │   ├── train.py                 # step 2: YOLOv5 training wrapper
@@ -123,7 +125,7 @@ Goal: given one photo of *multiple* bricks, produce a full inventory.
    part → count inventory.
 2. **Test end-to-end** on real multi-brick photos and sanity-check the
    counts.
-3. **Expose it via `main_local.py`** (`pipeline-run <image>`).
+3. **Expose it** -- how (script, CLI, notebook cell) is still open; main_local.py was removed for now.
 
 ### Bonus — Rebrickable integration
 
@@ -133,8 +135,8 @@ Goal: turn the inventory into "here's what you can build."
 2. **Build the client** (`app/rebrickable/client.py`) — wrap the
    `get_set_match` endpoint.
 3. **Connect it**: feed the Objective 3 inventory in, get back matched
-   sets + missing pieces per set, surface it via `main_local.py
-   match-sets`.
+   sets + missing pieces per set. How this gets surfaced (script, CLI,
+   notebook cell) is still open; main_local.py was removed for now.
 
 ## Working agreement
 

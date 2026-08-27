@@ -108,5 +108,6 @@ processed_data/*
 *.ipynb
 *.zip
 
-
-
+# Claude device-bridge scratch (stray lock files, stale build artefacts
+# it couldn't delete directly) -- never meant to be committed.
+_to_delete/

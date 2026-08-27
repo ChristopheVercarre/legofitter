@@ -9,16 +9,22 @@ from tensorflow import keras
 # `sys.path.append("..")` was removed — worth dropping this import too.
 
 
-def save_model(model: keras.Model = None) -> None:
+def save_model(model: keras.Model = None, name: str = None) -> None:
     """
-    Save model locally and in your bucket on GCS at "models/{timestamp}.h5"
+    Save model locally and in your bucket on GCS at "models/{name}.keras"
+
+        registry.save_model(model)              -> name defaults to
+                                                     "{timestamp}_{your username}"
+        registry.save_model(model, "baseline")  -> saved as "models/baseline.keras"
     """
 
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    if name is None:
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        name = f"{timestamp}_{os.environ.get('USER', 'unknown')}"
 
     # Save model locally
 
-    model_path = os.path.join(MODELS_DIR, f"{timestamp}.keras")
+    model_path = os.path.join(MODELS_DIR, f"{name}.keras")
 
     model.save(model_path)
 

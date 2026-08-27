@@ -55,19 +55,16 @@ TEST_SIZE = 0.15
 VAL_SIZE = 0.15
 
 # --- Objective 1: model architecture (model.py) ---
-# Filters per convolution block. Each entry adds one block of
-# (Conv -> BN -> Conv -> BN -> MaxPool). Filters grow with depth because
-# spatial size shrinks at every pool: early layers see fine detail and need
-# few filters, deeper layers combine that detail into more distinct features.
-CONV_BLOCKS = (32, 64, 128)
-
 DENSE_UNITS = 128       # width of the single hidden layer in the classifier head
 DROPOUT_RATE = 0.4      # fraction of units randomly dropped during training
 L2_REG = 1e-4           # weight-decay strength applied to Dense/Conv kernels
 
 # --- Objective 1: augmentation (model.py) ---
 # All are "how much", as a fraction. Bricks are photographed at arbitrary
-# angles and lighting, so geometric + photometric jitter both help.
+# angles and lighting, so geometric + photometric jitter both help. No
+# horizontal flip: LEGO has mirrored part pairs (left/right wedges) that are
+# DIFFERENT part IDs, so flipping could teach the model to confuse two
+# classes.
 AUG_ROTATION = 0.15     # +/- 15% of a full turn (~54 degrees)
 AUG_ZOOM = 0.15
 AUG_TRANSLATION = 0.10
@@ -77,10 +74,6 @@ AUG_CONTRAST = 0.20
 # The Keras default, "reflect", mirrors the brick into those corners and
 # invents phantom half-bricks — bad on our plain backgrounds.
 AUG_FILL_MODE = "nearest"
-# Horizontal flip is OFF by default: LEGO has mirrored part pairs (left/right
-# wedges) that are DIFFERENT part IDs, so flipping can teach the model to
-# confuse two classes. Turn on only after checking your class list.
-AUG_HORIZONTAL_FLIP = False
 
 # --- Objective 1: training (train.py) ---
 LEARNING_RATE = 1e-3            # Adam's default; ReduceLROnPlateau lowers it from here
