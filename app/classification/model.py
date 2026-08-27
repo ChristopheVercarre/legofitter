@@ -69,6 +69,7 @@ def enable_mixed_precision() -> None:
     layer is constructed, so calling it afterwards does nothing.
     """
     mixed_precision.set_global_policy("mixed_float16")
+    print("✅ Mixed precision enabled (float16 compute, float32 weights)")
 
 
 def build_augmentation() -> Sequential:
@@ -158,6 +159,11 @@ def initialize_model() -> Sequential:
     # full precision. Harmless when mixed precision is off.
     model.add(Dense(NUM_CLASSES, activation="softmax", dtype="float32"))
 
+    trainable = sum(int(w.numpy().size) for w in model.trainable_weights)
+    print(
+        f"✅ Model built: {IMG_SIZE[0]}x{IMG_SIZE[1]} input -> "
+        f"{NUM_CLASSES} classes, {trainable:,} trainable parameters"
+    )
     return model
 
 
@@ -173,4 +179,5 @@ def compile_model(model: Sequential, learning_rate: float = LEARNING_RATE) -> Se
         optimizer=Adam(learning_rate=learning_rate),
         metrics=["accuracy"],
     )
+    print(f"✅ Model compiled (Adam, lr={learning_rate}, sparse CE loss)")
     return model

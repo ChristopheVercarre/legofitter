@@ -33,19 +33,33 @@ from app.classification.train import train_model
 from app.params import IMG_SIZE
 
 
+def stage(number: int, title: str) -> None:
+    """A visible marker between the run's three long phases.
+
+    A training run prints thousands of lines; these are what let you scroll
+    back and find where each phase started.
+    """
+    print(f"\n{'=' * 60}\n  STEP {number}/3 -- {title}\n{'=' * 60}\n")
+
+
 if __name__ == "__main__":
+    print(f"\n🧱 LegoFitter -- VM training run at {IMG_SIZE[0]}x{IMG_SIZE[1]}\n")
+
     # train_model() returns the BEST weights, not the last epoch's --
     # EarlyStopping(restore_best_weights=True) rolls them back before returning.
     # It also builds the splits and prints their composition, so there is no
     # need to call prepare_data() first: that would rebuild the entire dataset
     # a second time for nothing.
+    stage(1, "TRAIN")
     model, history = train_model()
 
+    stage(2, "ARCHIVE TO BUCKET")
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     run_name = save_model(model, name=f"classifier_vm_{IMG_SIZE[0]}x{IMG_SIZE[1]}_{timestamp}")
 
+    stage(3, "EVALUATE")
     test_all, test_photos = evaluate()
     summarise(test_all, test_photos, history)
 
-    print(f"Saved as run: {run_name}")
-    print(f"  reload it anywhere with: registry.load_model(\"{run_name}\")\n")
+    print(f"✅ Run complete -- saved as: {run_name}")
+    print(f"   reload it anywhere with: registry.load_model(\"{run_name}\")\n")

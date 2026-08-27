@@ -114,6 +114,7 @@ def attach_class_names(model: keras.Model, run_dir) -> None:
     if class_names_path.exists():
         with open(class_names_path) as f:
             model.class_names = json.load(f)
+        print(f"✅ Class names attached to model ({len(model.class_names)} classes)")
     else:
         model.class_names = None
         print(f"⚠️  No class_names.json next to the model in {run_dir}")
