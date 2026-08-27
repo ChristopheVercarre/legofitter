@@ -15,11 +15,18 @@ trained anything itself but has a model in the bucket (see
 load_trained_model() below).
 """
 
+import json
+
 from keras.models import load_model as load_keras_model
 
 from app.classification import registry
 from app.classification.dataset import create_dataset, get_datasets
-from app.params import CLASSIFICATION_ACCURACY_TARGET, CLASSIFICATION_MODEL_PATH
+from app.params import (
+    CLASSIFICATION_ACCURACY_TARGET,
+    CLASSIFICATION_MODEL_PATH,
+    HISTORY_PATH,
+    IMG_SIZE,
+)
 
 
 def load_trained_model():
@@ -76,31 +83,87 @@ def evaluate_model(model, dataset, label: str = "test") -> tuple[float, float]:
     return loss, accuracy
 
 
-def check_gate(accuracy: float, target: float = CLASSIFICATION_ACCURACY_TARGET) -> bool:
-    """Compare photos-only test accuracy against the Objective 1 gate.
+def _load_curves(history=None) -> dict | None:
+    """The training curves as a plain dict, from memory or from disk.
 
-    Gated on PHOTOS accuracy specifically, not the mixed test set. Same
-    reasoning as train.py's PhotosOnlyMetric callback: cap_renders() only
-    thins renders out of the TRAINING split (see dataset.py), so the test
-    split still sits at the raw ~5:1 render:photo ratio. "Test accuracy"
-    on that mix mostly measures how well we classify clean synthetic
-    renders. The Objective 3 pipeline will only ever hand this model real
-    photo crops from the detector, so the 70% gate has to be measured on
-    real photos or it doesn't mean anything.
+    `history` is whatever train_model() returned -- a Keras History object.
+    Left as None (the usual case when evaluate.py is run on its own, hours or
+    machines away from the training run) this falls back to the history.json
+    that save_history() wrote, so a standalone evaluation can still report the
+    train and val numbers rather than only the test ones.
     """
-    passed = accuracy >= target
-    verdict = "PASSED" if passed else "FAILED"
-    print(f"\nObjective 1 gate ({target:.0%} on real photos): {accuracy:.2%} -> {verdict}")
-    if not passed:
-        print("Do not start Objective 2 until this clears the gate.")
+    if history is not None:
+        return history.history if hasattr(history, "history") else history
+
+    if HISTORY_PATH.exists():
+        return json.loads(HISTORY_PATH.read_text())
+
+    return None
+
+
+def summarise(test_all: float, test_photos: float, history=None) -> bool:
+    """Print train / val / test accuracy side by side, then the verdict.
+
+    Returns True if the model clears CLASSIFICATION_ACCURACY_TARGET.
+
+    Judged on photos only, not the mixed test set: cap_renders() thins renders
+    out of the TRAINING split alone (see dataset.py), so the test split keeps
+    the raw ~5:1 render:photo ratio. Accuracy on that mix mostly measures how
+    well we classify clean synthetic renders, whereas the Objective 3 pipeline
+    will only ever hand this model real photo crops from the detector.
+
+    Which epoch's train/val numbers to quote is not obvious either:
+    EarlyStopping runs with restore_best_weights=True, so the weights that got
+    saved and evaluated are the BEST epoch's, not the last one's. Quoting the
+    last epoch would describe weights that were thrown away -- flattering on
+    train accuracy, worse on val. So the epoch that actually won (lowest
+    val_loss) is the one reported, keeping all four numbers describing the
+    same set of weights.
+    """
+    curves = _load_curves(history)
+
+    print("\n" + "=" * 60)
+    print(f"Run summary -- {IMG_SIZE[0]}x{IMG_SIZE[1]} input")
+    print("=" * 60)
+
+    if curves and "val_loss" in curves:
+        val_losses = curves["val_loss"]
+        best = min(range(len(val_losses)), key=lambda i: val_losses[i])
+
+        print(f"  Best epoch          {best + 1} of {len(val_losses)}")
+        print(f"  Train accuracy      {curves['accuracy'][best]:.4f}")
+        print(f"  Val accuracy        {curves['val_accuracy'][best]:.4f}")
+
+        # The val split is ~84% renders, so the line above is mostly "how well
+        # do we classify renders". This is the same split, photos only, and is
+        # the one comparable to the photos-only test number below.
+        if "val_photos_accuracy" in curves:
+            print(f"  Val acc (photos)    {curves['val_photos_accuracy'][best]:.4f}")
+
+        print("-" * 60)
+    else:
+        print(f"  (no training curves at {HISTORY_PATH} -- test scores only)")
+        print("-" * 60)
+
+    print(f"  Test accuracy       {test_all:.4f}   (all: photos + renders)")
+    print(f"  Test accuracy       {test_photos:.4f}   (real photos only)")
+    print(f"  Target              {CLASSIFICATION_ACCURACY_TARGET:.4f}")
+    print("-" * 60)
+
+    passed = test_photos >= CLASSIFICATION_ACCURACY_TARGET
+    margin = (test_photos - CLASSIFICATION_ACCURACY_TARGET) * 100
+    print(f"  {'PASSED' if passed else 'FAILED'}  ({margin:+.2f} points on real photos)")
+    print("=" * 60 + "\n")
+
     return passed
 
 
-def evaluate() -> bool:
-    """Load the trained model, score it on the test split, check the gate.
+def evaluate() -> tuple[float, float]:
+    """Load the trained model and score it on the held-out test split.
 
-    Returns the gate's pass/fail bool so a caller (main_local.py, a
-    notebook) can branch on it without re-parsing the printed output.
+    Returns (all_accuracy, photos_accuracy) so the caller decides what to
+    print and what to compare against the target -- see summarise(), which
+    is what turns these two numbers into a report.
     """
     model = load_trained_model()
 
@@ -112,7 +175,7 @@ def evaluate() -> bool:
     _train_ds, _val_ds, test_dataset, (_train_df, _val_df, test_df) = get_datasets()
 
     print("Evaluating on the held-out test split:")
-    evaluate_model(model, test_dataset, label="test (all)")
+    _loss, all_accuracy = evaluate_model(model, test_dataset, label="test (all)")
 
     photos_test_df = test_df[test_df["source"] == "photos"]
     photos_test_dataset = create_dataset(photos_test_df)
@@ -120,11 +183,12 @@ def evaluate() -> bool:
         model, photos_test_dataset, label="test (photos only)"
     )
 
-    return check_gate(photos_accuracy)
+    return all_accuracy, photos_accuracy
 
 
 if __name__ == "__main__":
     # Lets you run this file directly:
     #     python -m app.classification.evaluate
     # from the project root, once a model exists locally or in the bucket.
-    evaluate()
+    _all_accuracy, _photos_accuracy = evaluate()
+    summarise(_all_accuracy, _photos_accuracy)

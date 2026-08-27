@@ -1,87 +1,165 @@
 
 from app.params import *
 import os
+import shutil
 import time
-import sys
+from pathlib import Path
+
 from google.cloud import storage
 from tensorflow import keras
-# TODO: `sys` is no longer used anywhere in this file now that
-# `sys.path.append("..")` was removed — worth dropping this import too.
 
 
-def save_model(model: keras.Model = None, name: str = None) -> None:
+def save_model(model: keras.Model = None, name: str = None) -> str:
+    """Save one training run as a self-contained folder, locally and on GCS.
+
+    A run is three files that only mean anything together:
+
+        models/<name>/classifier.keras      the architecture + weights
+        models/<name>/class_names.json      index -> part ID, from dataset.py
+        models/<name>/history.json          the loss/accuracy curves
+
+    The model alone is not a usable artifact. It emits 50 probabilities and
+    has no idea that slot 37 means part 3001 -- that mapping lives in
+    class_names.json, and pairing a model with the WRONG one gives confident,
+    silently incorrect predictions rather than an error. Keeping the three in
+    one folder is what makes that mistake hard to make: you copy a run, not a
+    file.
+
+    Filenames inside the folder are fixed, so nothing downstream has to parse
+    a name apart; the run's identity lives entirely in the folder name.
+
+        registry.save_model(model)              -> "{timestamp}_{username}"
+        registry.save_model(model, "baseline")  -> "baseline"
+
+    Returns the run name.
     """
-    Save model locally and in your bucket on GCS at "models/{name}.keras"
-
-        registry.save_model(model)              -> name defaults to
-                                                     "{timestamp}_{your username}"
-        registry.save_model(model, "baseline")  -> saved as "models/baseline.keras"
-    """
-
     if name is None:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         name = f"{timestamp}_{os.environ.get('USER', 'unknown')}"
 
-    # Save model locally
+    run_dir = MODELS_DIR / name
+    run_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = os.path.join(MODELS_DIR, f"{name}.keras")
+    model.save(run_dir / "classifier.keras")
 
-    model.save(model_path)
+    # Copied rather than moved: the flat models/class_names.json is the
+    # working state that predict.py and evaluate.py read with no arguments,
+    # and it has to stay put for those to keep working after this call.
+    for source, filename in (
+        (CLASS_NAMES_PATH, "class_names.json"),
+        (HISTORY_PATH, "history.json"),
+    ):
+        if source.exists():
+            shutil.copy2(source, run_dir / filename)
+        else:
+            print(f"⚠️  {source.name} not found -- not included in the run folder")
 
-    print("✅ Model saved locally")
-
-    model_filename = os.path.basename(model_path)
+    print(f"✅ Run saved locally to {run_dir}")
 
     client = storage.Client()
     bucket = client.bucket(BUCKET_NAME)
-    blob = bucket.blob(f"models/{model_filename}")
-    blob.upload_from_filename(model_path)
 
-    print("✅ Model saved to GCS")
+    for path in sorted(run_dir.iterdir()):
+        blob = bucket.blob(f"models/{name}/{path.name}")
+        blob.upload_from_filename(path)
+        print(f"   uploaded {blob.name}")
 
-    return None
+    print(f"✅ Run uploaded to gs://{BUCKET_NAME}/models/{name}/")
+
+    return name
+
+
+def _latest_run_name(bucket) -> str:
+    """Name of the most recently uploaded run folder, or None if there is none.
+
+    Judged by each run's classifier.keras rather than by whatever blob is
+    newest: the JSON sidecars upload a moment AFTER the model, so "newest
+    blob" would routinely be a .json -- which keras.models.load_model()
+    cannot open.
+    """
+    blobs = [
+        blob for blob in bucket.list_blobs(prefix="models/")
+        if blob.name.endswith("/classifier.keras")
+    ]
+
+    if not blobs:
+        return None
+
+    latest = max(blobs, key=lambda blob: blob.updated)
+
+    # "models/<name>/classifier.keras" -> "<name>"
+    return latest.name.split("/")[1]
 
 
 def load_model(model_name: str = None) -> keras.Model:
-    """
-    Return a saved model from GCS.
+    """Download a run from GCS and make it this machine's current model.
 
-        registry.load_model()                          -> the most recently
-                                                            updated model in
-                                                            the bucket
-        registry.load_model("20260826-143731.keras")   -> that exact model,
-                                                            by name
+        registry.load_model()                  -> the most recent run
+        registry.load_model("baseline")        -> that run, by folder name
 
-    Return None (but do not Raise) if no model is found.
+    Downloads the whole run folder, then refreshes the flat working-state
+    files (models/classifier.keras, models/class_names.json) from it. That
+    second step is the point: without it, a freshly downloaded model would be
+    scored against whatever class_names.json happened to be lying around from
+    an earlier run, and the part IDs would be quietly wrong.
+
+    Return None (but do not raise) if no run is found.
     """
     client = storage.Client()
     bucket = client.get_bucket(BUCKET_NAME)
 
-    if model_name is not None:
-        # Accept either "20260826-143731.keras" or the full
-        # "models/20260826-143731.keras" (what save_model() prints/uploads).
-        blob_name = model_name if model_name.startswith(
-            "models/") else f"models/{model_name}"
-        blob = bucket.blob(blob_name)
+    if model_name is None:
+        model_name = _latest_run_name(bucket)
 
-        if not blob.exists():
-            print(
-                f"\n❌ No model named {blob_name} found in GCS bucket {BUCKET_NAME}")
+        if model_name is None:
+            print(f"\n❌ No run found in GCS bucket {BUCKET_NAME}")
             return None
+
+    prefix = f"models/{model_name}/"
+    blobs = list(bucket.list_blobs(prefix=prefix))
+
+    if not blobs:
+        print(f"\n❌ No run named {model_name} found in GCS bucket {BUCKET_NAME}")
+        return None
+
+    run_dir = MODELS_DIR / model_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    for blob in blobs:
+        destination = run_dir / Path(blob.name).name
+        blob.download_to_filename(destination)
+        print(f"   downloaded {blob.name}")
+
+    model_path = run_dir / "classifier.keras"
+
+    if not model_path.exists():
+        print(f"\n❌ Run {model_name} has no classifier.keras")
+        return None
+
+    # Promote this run to the working state, so predict.py / evaluate.py pick
+    # up THIS model and THIS class mapping together on their next no-argument
+    # call. Overwriting is intended: the run you just asked for is the one
+    # you want to be current.
+    shutil.copy2(model_path, CLASSIFICATION_MODEL_PATH)
+
+    history = run_dir / "history.json"
+    if history.exists():
+        # So evaluate.py's summarise() can still report this run's train/val
+        # curves on a machine that never trained it.
+        shutil.copy2(history, HISTORY_PATH)
+
+    class_names = run_dir / "class_names.json"
+    if class_names.exists():
+        shutil.copy2(class_names, CLASS_NAMES_PATH)
     else:
-        blobs = list(bucket.list_blobs(prefix="model"))
+        print(
+            "⚠️  This run has no class_names.json -- predictions will use "
+            f"whatever is already at {CLASS_NAMES_PATH}, which may not match "
+            "this model. Check before trusting any part IDs."
+        )
 
-        if not blobs:
-            print(f"\n❌ No model found in GCS bucket {BUCKET_NAME}")
-            return None
+    model = keras.models.load_model(model_path)
 
-        blob = max(blobs, key=lambda x: x.updated)
-
-    model_path_to_save = os.path.join(PROJECT_ROOT, blob.name)
-    blob.download_to_filename(model_path_to_save)
-
-    model = keras.models.load_model(model_path_to_save)
-
-    print(f"✅ Model downloaded from cloud storage ({blob.name})")
+    print(f"✅ Run {model_name} downloaded and set as the current model")
 
     return model

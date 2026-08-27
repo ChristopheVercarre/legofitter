@@ -39,7 +39,6 @@ from app.params import (
     EPOCHS,
     HISTORY_PATH,
     MIN_LEARNING_RATE,
-    MODELS_DIR,
     REDUCE_LR_FACTOR,
     REDUCE_LR_PATIENCE,
     USE_MIXED_PRECISION,
@@ -76,7 +75,7 @@ class PhotosOnlyMetric(Callback):
 
 def build_callbacks(photos_val_dataset=None) -> list:
     """The four things that run between epochs."""
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    CLASSIFICATION_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     callbacks = []
 

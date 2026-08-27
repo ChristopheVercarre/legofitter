@@ -32,12 +32,19 @@ NUM_CLASSES = int(os.getenv("NUM_CLASSES", 50))
 CLASSIFICATION_DATA_DIR = PROJECT_ROOT / os.getenv(
     "CLASSIFICATION_DATA_DIR", "data/lego-dataset-classification"
 )
-CLASSIFICATION_MODEL_PATH = MODELS_DIR / "classifier.keras"
+# The "current" folder is this machine's working state: whatever was trained
+# or downloaded last. It is written during training, before a run has a name
+# (ModelCheckpoint starts saving after epoch 1), which is why it needs a fixed
+# location. registry.save_model() copies it into a named run folder afterwards,
+# and registry.load_model() copies a run back over it. Keeping it in a folder
+# means models/ holds nothing but folders -- one per run, plus this one.
+CURRENT_RUN_DIR = MODELS_DIR / "current"
+CLASSIFICATION_MODEL_PATH = CURRENT_RUN_DIR / "classifier.keras"
 CLASSIFICATION_ACCURACY_TARGET = 0.70  # gate before starting Objective 2
 
 # Index -> part ID mapping, written at training time so a saved model can be
 # used outside the session that trained it.
-CLASS_NAMES_PATH = MODELS_DIR / "class_names.json"
+CLASS_NAMES_PATH = CURRENT_RUN_DIR / "class_names.json"
 
 # The two image sources use different file extensions: globbing "*.jpg"
 # against renders/ silently returns nothing.
@@ -105,7 +112,7 @@ USE_MIXED_PRECISION = False
 
 # Where train.py dumps history.history so the curves survive the process.
 # A detached script has no notebook to hold `history` in memory.
-HISTORY_PATH = MODELS_DIR / "history.json"
+HISTORY_PATH = CURRENT_RUN_DIR / "history.json"
 
 # --- Objective 2: Object Detection ---
 DETECTION_DATA_DIR = PROJECT_ROOT / os.getenv(
