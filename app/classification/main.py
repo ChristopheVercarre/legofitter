@@ -31,6 +31,7 @@ def prepare_data() -> None:
     """
     _train_ds, _val_ds, _test_ds, (train_df, val_df, test_df) = get_datasets()
     describe_splits(train_df, val_df, test_df)
+    print("✅ Data preparation complete")
 
 
 def predict(image_path: str, top_k: int = 3) -> None:

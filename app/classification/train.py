@@ -121,6 +121,7 @@ def build_callbacks(photos_val_dataset=None) -> list:
         ),
     ]
 
+    print(f"✅ Callbacks ready ({len(callbacks)} active)")
     return callbacks
 
 
@@ -138,7 +139,7 @@ def save_history(history) -> None:
     HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
     HISTORY_PATH.write_text(json.dumps(serialisable, indent=2))
 
-    print(f"Training history written to {HISTORY_PATH}")
+    print(f"✅ Training history saved: {HISTORY_PATH}")
 
 
 def describe_splits(train_df, val_df, test_df) -> None:
@@ -165,7 +166,6 @@ def train_model():
     # Must happen before any layer is created, hence before initialize_model().
     if USE_MIXED_PRECISION:
         enable_mixed_precision()
-        print("Mixed precision enabled (float16 compute, float32 weights)")
 
     # get_datasets() applies cap_renders() to the training split only, so
     # train is ~1.84:1 renders:photos while val/test keep the natural ~5:1.
@@ -180,6 +180,8 @@ def train_model():
     model = compile_model(initialize_model())
     model.summary()
 
+    print(f"\nStarting training (up to {EPOCHS} epochs)...\n")
+
     history = model.fit(
         train_dataset,
         validation_data=val_dataset,
@@ -187,8 +189,11 @@ def train_model():
         callbacks=build_callbacks(photos_val_dataset),
     )
 
+    epochs_run = len(history.history["loss"])
+    print(f"\n✅ Training finished after {epochs_run} epoch(s)")
+
     save_history(history)
-    print(f"Best weights saved to {CLASSIFICATION_MODEL_PATH}")
+    print(f"✅ Best weights saved: {CLASSIFICATION_MODEL_PATH}")
 
     return model, history
 

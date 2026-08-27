@@ -52,7 +52,7 @@ def load_trained_model():
     automatically -- pushing to the bucket is still a separate, manual step).
     """
     if CLASSIFICATION_MODEL_PATH.exists():
-        print(f"Loading local checkpoint: {CLASSIFICATION_MODEL_PATH}")
+        print(f"✅ Loaded local checkpoint: {CLASSIFICATION_MODEL_PATH}")
         model = load_keras_model(CLASSIFICATION_MODEL_PATH)
         # Pair the model with the class list sitting NEXT TO IT, and carry the
         # pair as one object. predict_image() reads model.class_names, so the
@@ -190,6 +190,7 @@ def evaluate() -> tuple[float, float]:
         model, photos_test_dataset, label="test (photos only)"
     )
 
+    print("✅ Evaluation complete")
     return all_accuracy, photos_accuracy
 
 
