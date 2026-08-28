@@ -1,5 +1,5 @@
 """
-Training entry point for the GCP VM.
+Training entry point -- for the VM and for a laptop.
 
 Same idea as app/classification/main.py -- plain sequential calls, run top to
 bottom like notebook cells -- with two additions:
@@ -10,10 +10,13 @@ bottom like notebook cells -- with two additions:
   * a summary at the end puts train / val / test accuracy side by side, so one
     screenful tells you where the run landed.
 
-Run it through the Makefile so the image size is explicit in the command:
+Run it through the Makefile, which is also what labels the run:
 
-    make run_vm                 # uses IMG_SIZE from .env, or 128
-    make run_vm IMG_SIZE=256
+    make run_vm IMG_SIZE=256    # on the GCP VM  -> classifier_vm_...
+    make run_local              # on a laptop    -> classifier_local_...
+
+The two targets differ only in the MACHINE label they pass; the training
+itself is identical, so there is one script rather than two that drift.
 
 Each run is saved as its own folder, locally and in the bucket:
 
@@ -25,6 +28,7 @@ Each run is saved as its own folder, locally and in the bucket:
 The timestamp in the folder name means nothing is ever overwritten.
 """
 
+import os
 import time
 
 from app.classification.evaluate import evaluate, summarise
@@ -43,7 +47,13 @@ def stage(number: int, title: str) -> None:
 
 
 if __name__ == "__main__":
-    print(f"\n🧱 LegoFitter -- VM training run at {IMG_SIZE[0]}x{IMG_SIZE[1]}\n")
+    # Which machine this run happened on, for the archive name. Set by the
+    # Makefile: `make run_vm` -> "vm", `make run_local` -> "local". Defaults
+    # to "local" so a bare `python run_training.py` never mislabels a laptop
+    # run as having come from the VM.
+    machine = os.getenv("MACHINE", "local")
+
+    print(f"\n🧱 LegoFitter -- {machine} training run at {IMG_SIZE[0]}x{IMG_SIZE[1]}\n")
 
     # train_model() returns the BEST weights, not the last epoch's --
     # EarlyStopping(restore_best_weights=True) rolls them back before returning.
@@ -55,7 +65,10 @@ if __name__ == "__main__":
 
     stage(2, "ARCHIVE TO BUCKET")
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    run_name = save_model(model, name=f"classifier_vm_{IMG_SIZE[0]}x{IMG_SIZE[1]}_{timestamp}")
+    run_name = save_model(
+        model,
+        name=f"classifier_{machine}_{IMG_SIZE[0]}x{IMG_SIZE[1]}_{timestamp}",
+    )
 
     stage(3, "EVALUATE")
     test_all, test_photos = evaluate()
