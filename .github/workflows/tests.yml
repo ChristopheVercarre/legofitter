@@ -1,0 +1,36 @@
+# Runs the smoke tests on every pull request and every push to master.
+#
+# The point of this file: a broken or truncated module cannot reach master
+# without someone seeing a red check first. Nobody has to remember to run
+# anything.
+#
+# Deliberately installs ONLY pytest, not the project's dependencies. The
+# smoke tests parse the source files rather than importing them, so they need
+# nothing else -- and requirements.txt resolves to tensorflow[and-cuda] on
+# Linux, which would mean a ~2GB download to check that a file is not empty.
+# The tests that really import the project skip themselves when TensorFlow is
+# absent, so they run on the Mac and the VM but cost nothing here.
+
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run smoke tests
+        run: pytest tests/ -v

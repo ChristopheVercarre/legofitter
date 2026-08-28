@@ -38,3 +38,9 @@ thop==0.1.1.post2209072238
 
 # --- Bonus: Rebrickable API ---
 requests==2.32.3
+
+# --- Development ---
+# Needed for `make test`. Installed by `pip install -e .` too, since setup.py
+# reads this file -- a few MB, and it means the test suite works on every
+# machine without a separate install step.
+pytest==8.2.2

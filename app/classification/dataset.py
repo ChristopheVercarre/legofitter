@@ -312,18 +312,33 @@ def split_dataframe(
     return train_df, val_df, test_df
 
 
-def load_and_preprocess(file_path, label):
-    """Read one image file, decode it, resize to IMG_SIZE, scale to [0, 1]."""
+def load_and_preprocess(file_path, label, img_size=None):
+    """Read one image file, decode it, resize, scale to [0, 1].
+
+    `img_size` defaults to IMG_SIZE (what we train at). Evaluation passes the
+    size read off the trained model instead, so scoring an old model never
+    depends on how this machine happens to be configured.
+    """
+    img_size = tuple(img_size) if img_size is not None else IMG_SIZE
+
     img = tf.io.read_file(file_path)
     # Both sources are JPEG — .jpg and .jpeg differ only in extension.
     img = tf.io.decode_jpeg(img, channels=3)
-    img = tf.image.resize(img, IMG_SIZE)
+    img = tf.image.resize(img, img_size)
     img = tf.cast(img, tf.float32) / 255.0
     return img, label
 
 
-def create_dataset(dataframe: pd.DataFrame, training: bool = False) -> tf.data.Dataset:
-    """Turn a split DataFrame into a batched, prefetched tf.data.Dataset."""
+def create_dataset(
+    dataframe: pd.DataFrame,
+    training: bool = False,
+    img_size=None,
+) -> tf.data.Dataset:
+    """Turn a split DataFrame into a batched, prefetched tf.data.Dataset.
+
+    `img_size` defaults to IMG_SIZE; pass a model's own input size to score
+    that model regardless of this machine's configuration.
+    """
     image_paths = dataframe["image_path"].astype(str).to_numpy()
     labels = dataframe["label"].astype("int32").to_numpy()
 
@@ -337,8 +352,10 @@ def create_dataset(dataframe: pd.DataFrame, training: bool = False) -> tf.data.D
             reshuffle_each_iteration=True,
         )
 
-    dataset = dataset.map(load_and_preprocess,
-                          num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset.map(
+        lambda path, label: load_and_preprocess(path, label, img_size),
+        num_parallel_calls=tf.data.AUTOTUNE,
+    )
     dataset = dataset.batch(BATCH_SIZE)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
 
@@ -348,6 +365,7 @@ def create_dataset(dataframe: pd.DataFrame, training: bool = False) -> tf.data.D
 def get_datasets(
     num_classes: int = NUM_CLASSES,
     render_ratio: float | None = RENDER_PHOTO_RATIO,
+    img_size=None,
 ):
     """Run the whole chain: disk -> (train, val, test) tf.data.Datasets.
 
@@ -374,9 +392,9 @@ def get_datasets(
     if render_ratio is not None:
         train_df = cap_renders(train_df, ratio=render_ratio)
 
-    train_dataset = create_dataset(train_df, training=True)
-    val_dataset = create_dataset(val_df, training=False)
-    test_dataset = create_dataset(test_df, training=False)
+    train_dataset = create_dataset(train_df, training=True, img_size=img_size)
+    val_dataset = create_dataset(val_df, training=False, img_size=img_size)
+    test_dataset = create_dataset(test_df, training=False, img_size=img_size)
 
     print("✅ Datasets ready (train / val / test built and prefetching)\n")
     return train_dataset, val_dataset, test_dataset, (train_df, val_df, test_df)
