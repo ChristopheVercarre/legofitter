@@ -24,6 +24,7 @@ from keras.callbacks import (
     EarlyStopping,
     ModelCheckpoint,
     ReduceLROnPlateau,
+    LearningRateScheduler
 )
 
 from app.classification.dataset import create_dataset, get_datasets
@@ -39,6 +40,7 @@ from app.params import (
     EPOCHS,
     HISTORY_PATH,
     MIN_LEARNING_RATE,
+    LEARNING_RATE,
     REDUCE_LR_FACTOR,
     REDUCE_LR_PATIENCE,
     USE_MIXED_PRECISION,
@@ -72,6 +74,10 @@ class PhotosOnlyMetric(Callback):
         gate = " <-- clears the 70% gate" if accuracy >= CLASSIFICATION_ACCURACY_TARGET else ""
         print(f"    val_photos_accuracy: {accuracy:.4f}{gate}")
 
+def step_decay(epochs: int, lr: float) -> float:
+    """LR = base * 0.2^(epoch // 30). On repart de LEARNING_RATE
+    à chaque appel plutôt que de `lr`, pour que la fonction soit idempotente."""
+    return LEARNING_RATE * (0.2 ** (EPOCHS // 30))
 
 def build_callbacks(photos_val_dataset=None) -> list:
     """The four things that run between epochs."""
@@ -102,13 +108,14 @@ def build_callbacks(photos_val_dataset=None) -> list:
         # oscillates. Note this patience is deliberately SHORTER than
         # EarlyStopping's, so the model gets a chance to improve at a finer
         # step size before we give up on it entirely.
-        ReduceLROnPlateau(
-            monitor="val_loss",
-            factor=REDUCE_LR_FACTOR,
-            patience=REDUCE_LR_PATIENCE,
-            min_lr=MIN_LEARNING_RATE,
-            verbose=1,
-        ),
+        # ReduceLROnPlateau(
+        #     monitor="val_loss",
+        #     factor=REDUCE_LR_FACTOR,
+        #     patience=REDUCE_LR_PATIENCE,
+        #     min_lr=MIN_LEARNING_RATE,
+        #     verbose=1,
+        # ),
+        LearningRateScheduler(step_decay, verbose=1),
 
         # Stop once val_loss has not improved for N epochs, and roll the
         # weights back to the best epoch rather than keeping whatever the
