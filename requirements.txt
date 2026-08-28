@@ -44,3 +44,10 @@ requests==2.32.3
 # reads this file -- a few MB, and it means the test suite works on every
 # machine without a separate install step.
 pytest==8.2.2
+
+# --- API ---
+fastapi
+uvicorn
+pytz
+httpx
+pytest-asyncio
