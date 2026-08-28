@@ -76,7 +76,7 @@ EXPECTED_API = {
         "save_model",
         "load_model",
     ],
-    "run_vm.py": ["stage"],
+    "run_training.py": ["stage"],
 }
 
 # Constants the rest of the project reads from params.py. A missing one is a
