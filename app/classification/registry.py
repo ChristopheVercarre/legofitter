@@ -8,6 +8,11 @@ from pathlib import Path
 from google.cloud import storage
 from tensorflow import keras
 
+# Imported for its SIDE EFFECT: defining the custom layers in model.py runs
+# their @register_keras_serializable decorators, so keras.models.load_model()
+# below can reconstruct any run that uses one. Without this, loading a
+# teammate's model fails with "Could not locate class 'ColorAugmentation'".
+from app.classification import model as _model_layers  # noqa: F401
 from app.params import (
     BUCKET_NAME,
     CLASS_NAMES_PATH,
@@ -60,7 +65,8 @@ def save_model(model: keras.Model = None, name: str = None) -> str:
         if source.exists():
             shutil.copy2(source, run_dir / filename)
         else:
-            print(f"⚠️  {source.name} not found -- not included in the run folder")
+            print(
+                f"⚠️  {source.name} not found -- not included in the run folder")
 
     print(f"✅ Run saved locally to {run_dir}")
 
@@ -109,7 +115,8 @@ def attach_class_names(model: keras.Model, run_dir) -> None:
     if class_names_path.exists():
         with open(class_names_path) as f:
             model.class_names = json.load(f)
-        print(f"✅ Class names attached to model ({len(model.class_names)} classes)")
+        print(
+            f"✅ Class names attached to model ({len(model.class_names)} classes)")
     else:
         model.class_names = None
         print(f"⚠️  No class_names.json next to the model in {run_dir}")
@@ -137,45 +144,96 @@ def _latest_run_name(bucket) -> str:
     return latest.name.split("/")[1]
 
 
-def load_model(model_name: str = None) -> keras.Model:
-    """Download a run from GCS and make it this machine's current model.
+def is_run_complete(run_dir) -> bool:
+    """True if `run_dir` holds a usable run: the model AND its class names.
 
-        registry.load_model()                  -> the most recent run
-        registry.load_model("baseline")        -> that run, by folder name
+    "The folder exists" is not good enough. An interrupted download leaves a
+    partial folder behind, and a classifier.keras without its class_names.json
+    is exactly the pairing that produces confident, silently wrong part IDs.
+    history.json is not required -- losing the curves costs you a chart, not
+    correctness.
+    """
+    run_dir = Path(run_dir)
+    return (run_dir / "classifier.keras").exists() and (
+        run_dir / "class_names.json"
+    ).exists()
 
-    Downloads the whole run folder, then refreshes the flat working-state
-    files (models/classifier.keras, models/class_names.json) from it. That
-    second step is the point: without it, a freshly downloaded model would be
-    scored against whatever class_names.json happened to be lying around from
+
+def load_model(model_name: str = None, force_download: bool = False) -> keras.Model:
+    """Load a run and make it this machine's current model.
+
+        registry.load_model()                  -> the most recent run (bucket)
+        registry.load_model("baseline")        -> that run, local copy if there
+        registry.load_model("baseline", force_download=True)  -> re-fetch it
+
+    Named runs are served from disk when a complete copy is already in
+    models/<name>/, and downloaded from GCS otherwise. That local shortcut is
+    safe precisely because run folders are IMMUTABLE: the name carries a
+    timestamp and save_model() never overwrites one, so a local copy cannot
+    have drifted from the bucket's. (The same shortcut would be wrong for
+    models/current/, which every run overwrites.) It also means a named run
+    loads with no network at all.
+
+    Passing no name means "whatever is newest in the bucket", which only the
+    bucket can answer -- that path always goes to the network.
+
+    Either way the run is then promoted to the working state, so predict.py
+    and evaluate.py pick up THIS model and THIS class mapping together on
+    their next no-argument call. Without that step a freshly loaded model
+    would be scored against whatever class_names.json was lying around from
     an earlier run, and the part IDs would be quietly wrong.
 
     Return None (but do not raise) if no run is found.
     """
-    client = storage.Client()
-    bucket = client.get_bucket(BUCKET_NAME)
+    run_dir = MODELS_DIR / model_name if model_name else None
 
-    if model_name is None:
-        model_name = _latest_run_name(bucket)
+    # --- Fast path: a complete local copy of a named run ------------------
+    if model_name and not force_download and is_run_complete(run_dir):
+        print(f"✅ Found run {model_name} locally -- no download needed")
+
+    # --- Otherwise go to the bucket ---------------------------------------
+    else:
+        client = storage.Client()
+        bucket = client.get_bucket(BUCKET_NAME)
 
         if model_name is None:
-            print(f"\n❌ No run found in GCS bucket {BUCKET_NAME}")
+            model_name = _latest_run_name(bucket)
+
+            if model_name is None:
+                print(f"\n❌ No run found in GCS bucket {BUCKET_NAME}")
+                return None
+
+            run_dir = MODELS_DIR / model_name
+
+            # The newest run may already be here from a previous call.
+            if not force_download and is_run_complete(run_dir):
+                print(f"✅ Newest run is {model_name}, already here locally")
+                return _finalise_load(model_name, run_dir)
+
+        prefix = f"models/{model_name}/"
+        blobs = list(bucket.list_blobs(prefix=prefix))
+
+        if not blobs:
+            print(
+                f"\n❌ No run named {model_name} found in GCS bucket {BUCKET_NAME}")
             return None
 
-    prefix = f"models/{model_name}/"
-    blobs = list(bucket.list_blobs(prefix=prefix))
+        run_dir.mkdir(parents=True, exist_ok=True)
 
-    if not blobs:
-        print(f"\n❌ No run named {model_name} found in GCS bucket {BUCKET_NAME}")
-        return None
+        for blob in blobs:
+            destination = run_dir / Path(blob.name).name
+            blob.download_to_filename(destination)
+            print(f"   downloaded {blob.name}")
 
-    run_dir = MODELS_DIR / model_name
-    run_dir.mkdir(parents=True, exist_ok=True)
+    return _finalise_load(model_name, run_dir)
 
-    for blob in blobs:
-        destination = run_dir / Path(blob.name).name
-        blob.download_to_filename(destination)
-        print(f"   downloaded {blob.name}")
 
+def _finalise_load(model_name: str, run_dir) -> keras.Model:
+    """Promote a run folder to the working state and load the model from it.
+
+    Shared by every path through load_model() -- local or downloaded -- so
+    the model, its class names and its history are always promoted together.
+    """
     model_path = run_dir / "classifier.keras"
 
     if not model_path.exists():
@@ -215,6 +273,6 @@ def load_model(model_name: str = None) -> keras.Model:
     model = keras.models.load_model(model_path)
     attach_class_names(model, run_dir)
 
-    print(f"✅ Run {model_name} downloaded and set as the current model")
+    print(f"✅ Run {model_name} loaded and set as the current model")
 
     return model
