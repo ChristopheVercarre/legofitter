@@ -85,7 +85,7 @@ TEST_SIZE = 0.15
 VAL_SIZE = 0.15
 
 # --- Objective 1: model architecture (model.py) ---
-DENSE_UNITS = 128       # width of the single hidden layer in the classifier head
+DENSE_UNITS = 256       # width of the single hidden layer in the classifier head
 DROPOUT_RATE = 0.4      # fraction of units randomly dropped during training
 L2_REG = 1e-4           # weight-decay strength applied to Dense/Conv kernels
 
@@ -108,10 +108,10 @@ AUG_FILL_MODE = "nearest"
 # --- Objective 1: training (train.py) ---
 LEARNING_RATE = 1e-3            # Adam's default; ReduceLROnPlateau lowers it from here
 EPOCHS = 100                    # upper bound — EarlyStopping normally stops us first
-EARLY_STOPPING_PATIENCE = 15    # epochs without val_loss improvement before stopping
+EARLY_STOPPING_PATIENCE = 30    # epochs without val_loss improvement before stopping
 REDUCE_LR_PATIENCE = 5          # epochs without improvement before halving the LR
 REDUCE_LR_FACTOR = 0.5          # new_lr = old_lr * this
-MIN_LEARNING_RATE = 1e-5        # floor for ReduceLROnPlateau
+MIN_LEARNING_RATE = 1e-4        # floor for ReduceLROnPlateau
 
 # float16 compute on the GPU's tensor cores. Big speedup on the T4, no effect
 # (or a slowdown) on CPU / Apple Silicon — so leave False locally, True on the VM.
