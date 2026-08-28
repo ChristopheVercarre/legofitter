@@ -13,7 +13,6 @@ from app.params import (
     CLASS_NAMES_PATH,
     CLASSIFICATION_MODEL_PATH,
     HISTORY_PATH,
-    IMG_SIZE,
     MODELS_DIR,
 )
 
@@ -78,22 +77,18 @@ def save_model(model: keras.Model = None, name: str = None) -> str:
     return name
 
 
-def check_input_size(model: keras.Model) -> None:
-    """Warn loudly if the loaded model's input size differs from IMG_SIZE.
+def model_input_size(model: keras.Model) -> tuple[int, int]:
+    """The (height, width) this model was built for, read off the model itself.
 
-    A model trained at 256x256 loaded on a machine whose IMG_SIZE resolves to
-    128 would otherwise fail later with a cryptic shape-mismatch error deep
-    inside predict/evaluate -- or worse, silently resize incorrectly. The run
-    name carries the size, but nothing else checked it until now.
+    Every saved .keras file carries its own input shape, so inference never
+    has to be told what size to use -- it asks. IMG_SIZE is the knob that
+    decides what size you TRAIN at; once a model exists, the model is the
+    authority. That is what lets a teammate load a 256x256 model and predict
+    with it on a machine configured for 128, with nothing to set and nothing
+    to restart.
     """
-    expected = model.input_shape[1:3]  # (batch, H, W, C) -> (H, W)
-    if tuple(expected) != tuple(IMG_SIZE):
-        print(
-            f"⚠️  This model expects {expected[0]}x{expected[1]} input, but "
-            f"IMG_SIZE here is {IMG_SIZE[0]}x{IMG_SIZE[1]}. Evaluate/predict "
-            f"will fail or mis-resize. Rerun with IMG_SIZE={expected[0]} "
-            f"(e.g. `IMG_SIZE={expected[0]} python ...` or set it in .env)."
-        )
+    height, width = model.input_shape[1:3]  # (batch, H, W, C)
+    return int(height), int(width)
 
 
 def attach_class_names(model: keras.Model, run_dir) -> None:
@@ -191,6 +186,14 @@ def load_model(model_name: str = None) -> keras.Model:
     # up THIS model and THIS class mapping together on their next no-argument
     # call. Overwriting is intended: the run you just asked for is the one
     # you want to be current.
+    #
+    # models/current/ is normally created by training (build_callbacks and
+    # save_class_names both mkdir it). On a machine that has NEVER trained --
+    # a teammate who clones the repo and downloads a model straight from the
+    # bucket -- it does not exist yet, and these copies would fail. So create
+    # it here too.
+    CLASSIFICATION_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     shutil.copy2(model_path, CLASSIFICATION_MODEL_PATH)
 
     history = run_dir / "history.json"
@@ -210,7 +213,6 @@ def load_model(model_name: str = None) -> keras.Model:
         )
 
     model = keras.models.load_model(model_path)
-    check_input_size(model)
     attach_class_names(model, run_dir)
 
     print(f"✅ Run {model_name} downloaded and set as the current model")

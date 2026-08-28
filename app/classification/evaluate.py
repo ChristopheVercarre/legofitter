@@ -21,11 +21,11 @@ from keras.models import load_model as load_keras_model
 
 from app.classification import registry
 from app.classification.dataset import create_dataset, get_datasets
+from app.classification.registry import model_input_size
 from app.params import (
     CLASSIFICATION_ACCURACY_TARGET,
     CLASSIFICATION_MODEL_PATH,
     HISTORY_PATH,
-    IMG_SIZE,
 )
 
 
@@ -130,7 +130,7 @@ def summarise(test_all: float, test_photos: float, history=None) -> bool:
     curves = _load_curves(history)
 
     print("\n" + "=" * 60)
-    print(f"Run summary -- {IMG_SIZE[0]}x{IMG_SIZE[1]} input")
+    print("Run summary")
     print("=" * 60)
 
     if curves and "val_loss" in curves:
@@ -174,18 +174,25 @@ def evaluate() -> tuple[float, float]:
     """
     model = load_trained_model()
 
+    # Resize the test images to what THIS model expects, not to whatever
+    # IMG_SIZE this machine happens to be configured for. Scoring an old
+    # 256x256 model on a 128-configured laptop then just works.
+    img_size = model_input_size(model)
+
     # Rebuilding the splits here (rather than reusing train.py's in-memory
     # test_dataset) keeps evaluate.py runnable on its own, any time, without
     # depending on train.py's process still being alive. get_datasets() uses
     # the same RANDOM_STATE every call, so this reproduces the exact same
     # held-out test split train.py never trained on -- not a fresh random one.
-    _train_ds, _val_ds, test_dataset, (_train_df, _val_df, test_df) = get_datasets()
+    _train_ds, _val_ds, test_dataset, (_train_df, _val_df, test_df) = get_datasets(
+        img_size=img_size
+    )
 
-    print("Evaluating on the held-out test split:")
+    print(f"Evaluating on the held-out test split ({img_size[0]}x{img_size[1]}):")
     _loss, all_accuracy = evaluate_model(model, test_dataset, label="test (all)")
 
     photos_test_df = test_df[test_df["source"] == "photos"]
-    photos_test_dataset = create_dataset(photos_test_df)
+    photos_test_dataset = create_dataset(photos_test_df, img_size=img_size)
     _loss, photos_accuracy = evaluate_model(
         model, photos_test_dataset, label="test (photos only)"
     )

@@ -24,11 +24,15 @@ from keras import Model
 
 from app.classification.dataset import load_class_names
 from app.classification.evaluate import load_trained_model
-from app.params import IMG_SIZE
+from app.classification.registry import model_input_size
 
 
-def load_image_for_prediction(image_path: str) -> tf.Tensor:
+def load_image_for_prediction(image_path: str, img_size) -> tf.Tensor:
     """Read one image file and preprocess it exactly like dataset.py does.
+
+    `img_size` is required and comes from the model itself (see
+    predict_image below), never from IMG_SIZE: a photo has to be resized to
+    what the model expects, and only the model knows that.
 
     Deliberately not reusing dataset.load_and_preprocess() directly: that
     function's signature is (file_path, label) because it's built for
@@ -38,7 +42,7 @@ def load_image_for_prediction(image_path: str) -> tf.Tensor:
     """
     img = tf.io.read_file(image_path)
     img = tf.io.decode_jpeg(img, channels=3)
-    img = tf.image.resize(img, IMG_SIZE)
+    img = tf.image.resize(img, tuple(img_size))
     img = tf.cast(img, tf.float32) / 255.0
     return img
 
@@ -68,6 +72,10 @@ def predict_image(
     # WITHOUT that attribute (loaded by hand, not through load_trained_model
     # or registry.load_model) falls back to the current working-state file,
     # which is a guess about which run it belongs to.
+    # The model carries its own input size, so a 256x256 model works here
+    # whatever IMG_SIZE this machine is set to -- nothing to configure.
+    img = load_image_for_prediction(image_path, model_input_size(model))
+
     class_names = getattr(model, "class_names", None)
     if class_names is None:
         print(
@@ -77,7 +85,7 @@ def predict_image(
             "evaluate.load_trained_model() to avoid this."
         )
         class_names = load_class_names()
-    img = load_image_for_prediction(image_path)
+
     # model.predict() expects a BATCH of images, i.e. shape (batch, H, W, 3).
     # tf.expand_dims adds that batch dimension of 1 for our single image.
     batch = tf.expand_dims(img, axis=0)

@@ -1,4 +1,4 @@
-.PHONY: run_vm prepare_data
+.PHONY: run_vm prepare_data test
 
 # Override per run:  make run_vm IMG_SIZE=256
 # Falls back to .env, then to 128 (see app/params.py).
@@ -15,3 +15,7 @@ run_vm:
 # Build the splits and print their composition, without training.
 prepare_data:
 	IMG_SIZE=$(IMG_SIZE) python -c "from app.classification.main import prepare_data; prepare_data()"
+
+# Smoke tests -- run before pushing. Same suite GitHub Actions runs on PRs.
+test:
+	pytest tests/ -v
