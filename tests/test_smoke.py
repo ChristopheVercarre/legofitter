@@ -73,6 +73,7 @@ EXPECTED_API = {
     "app/classification/registry.py": [
         "model_input_size",
         "attach_class_names",
+        "is_run_complete",
         "save_model",
         "load_model",
     ],
