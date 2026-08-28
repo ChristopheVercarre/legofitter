@@ -27,7 +27,7 @@ from keras.callbacks import (
 )
 
 from app.classification.dataset import create_dataset, get_datasets
-from app.classification.model import (
+from app.classification.models.model import (
     compile_model,
     enable_mixed_precision,
     initialize_model,
