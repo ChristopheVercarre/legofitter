@@ -18,7 +18,8 @@ PyYAML==6.0.1
 # back to CPU -- 'Cannot dlopen some GPU libraries ... Skipping registering
 # GPU devices' is the only warning you get. macOS has no CUDA at all, and
 # uses tensorflow-metal below instead.
-tensorflow[and-cuda]==2.16.1; sys_platform == 'linux'
+# tensorflow[and-cuda]==2.16.1; sys_platform == 'linux'
+tensorflow[and-cuda]==2.16.1; sys_platform == 'linux' and platform_machine == "x86_64"
 tensorflow==2.16.1; sys_platform != 'linux'
 scikit-learn==1.5.0
 scikit-image
