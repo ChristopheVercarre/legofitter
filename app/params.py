@@ -32,6 +32,13 @@ NUM_CLASSES = int(os.getenv("NUM_CLASSES", 50))
 CLASSIFICATION_DATA_DIR = PROJECT_ROOT / os.getenv(
     "CLASSIFICATION_DATA_DIR", "data/lego-dataset-classification"
 )
+# Where dataset.ensure_local_data() fetches the images from when a machine
+# (a fresh VM, a teammate's laptop) has no local copy. Kept here rather than
+# in dataset.py so every path/bucket the project touches lives in one file.
+GCS_CLASSIFICATION_DATA = os.getenv(
+    "GCS_CLASSIFICATION_DATA",
+    "gs://legofitter-datasets/lego-dataset-classification",
+)
 # The "current" folder is this machine's working state: whatever was trained
 # or downloaded last. It is written during training, before a run has a name
 # (ModelCheckpoint starts saving after epoch 1), which is why it needs a fixed
