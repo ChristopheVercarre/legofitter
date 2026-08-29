@@ -241,6 +241,10 @@ def train_model():
     # Must happen before any layer is created, hence before initialize_model().
     if USE_MIXED_PRECISION:
         architecture.enable_mixed_precision()
+    else:
+        # Printed rather than left silent: "did mixed precision actually turn
+        # on?" is the first question when a GPU run is slower than expected.
+        print("✅ Mixed precision OFF (float32 compute)")
 
     # get_datasets() applies cap_renders() to the training split only, so
     # train is ~1.84:1 renders:photos while val/test keep the natural ~5:1.
