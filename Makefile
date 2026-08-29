@@ -11,6 +11,13 @@ IMG_SIZE ?= 128
 # is no .env either, params.py falls back to christophe.
 MODEL_NAME_ENV = $(if $(MODEL_NAME),MODEL_NAME=$(MODEL_NAME))
 
+# float16 on the T4's tensor cores. ON for run_vm because the VM always has the
+# GPU -- nobody should have to remember this. Turn it off for one run with
+#   make run_vm USE_MIXED_PRECISION=false
+# run_local deliberately does NOT set it: a laptop has no tensor cores, so
+# there it stays off (params.py defaults to False).
+USE_MIXED_PRECISION ?= true
+
 # The only way to train. Trains, archives the run to the GCS bucket, evaluates.
 #
 # There is deliberately no "train without saving" target: models/current/ is
