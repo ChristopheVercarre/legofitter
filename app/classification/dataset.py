@@ -150,6 +150,11 @@ def build_dataframe(classes: list[str] | None = None) -> pd.DataFrame:
     return dataframe
 
 
+# What the last filter_blurry() call dropped. Read by train.py for the run
+# summary; empty until filter_blurry() has run at least once in this process.
+BLUR_STATS = {}
+
+
 def is_blurry(image_path: str, threshold: float = BLUR_VARIANCE_THRESHOLD) -> bool:
     """True if image_path's sharpness falls below threshold.
 
@@ -189,6 +194,18 @@ def filter_blurry(
 
     dropped = int(blurry.sum())
     kept = dataframe[~blurry].reset_index(drop=True)
+
+    # Recorded so run_training's final summary can report it at the bottom of
+    # a long log, without re-scanning every photo. Overwritten on each call --
+    # evaluate() rebuilds the same splits with the same threshold, so the
+    # numbers do not change between calls within a run.
+    BLUR_STATS.update({
+        "dropped": dropped,
+        "photos_checked": int(is_photo.sum()),
+        "kept": len(kept),
+        "indexed": len(dataframe),
+        "threshold": threshold,
+    })
     print(
         f"✅ Blur filter: kept {len(kept):,} of {len(dataframe):,} images "
         f"({dropped} blurry photo(s) dropped from {int(is_photo.sum()):,}, "

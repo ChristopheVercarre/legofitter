@@ -12,15 +12,16 @@ bottom like notebook cells -- with two additions:
 
 Run it through the Makefile, which is also what labels the run:
 
-    make run_vm IMG_SIZE=256    # on the GCP VM  -> classifier_vm_...
-    make run_local              # on a laptop    -> classifier_local_...
+    make run_vm IMG_SIZE=256    # on the GCP VM  -> classifier_christophe_vm_...
+    make run_local              # on a laptop    -> classifier_christophe_local_...
+    make run_local MODEL_NAME=oriane            -> classifier_oriane_local_...
 
 The two targets differ only in the MACHINE label they pass; the training
 itself is identical, so there is one script rather than two that drift.
 
 Each run is saved as its own folder, locally and in the bucket:
 
-    models/classifier_vm_256x256_20260827-154512/
+    models/classifier_christophe_vm_256x256_20260827-154512/
         classifier.keras
         class_names.json
         history.json
@@ -34,7 +35,7 @@ import time
 from app.classification.evaluate import evaluate, summarise
 from app.classification.registry import save_model
 from app.classification.train import train_model
-from app.params import IMG_SIZE
+from app.params import IMG_SIZE, MODEL_NAME
 
 
 def stage(number: int, title: str) -> None:
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     # run as having come from the VM.
     machine = os.getenv("MACHINE", "local")
 
-    print(f"\n🧱 LegoFitter -- {machine} training run at {IMG_SIZE[0]}x{IMG_SIZE[1]}\n")
+    print(f"\n🧱 LegoFitter -- {machine} training run, model_{MODEL_NAME} at {IMG_SIZE[0]}x{IMG_SIZE[1]}\n")
 
     # train_model() returns the BEST weights, not the last epoch's --
     # EarlyStopping(restore_best_weights=True) rolls them back before returning.
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     run_name = save_model(
         model,
-        name=f"classifier_{machine}_{IMG_SIZE[0]}x{IMG_SIZE[1]}_{timestamp}",
+        name=f"classifier_{MODEL_NAME}_{machine}_{IMG_SIZE[0]}x{IMG_SIZE[1]}_{timestamp}",
     )
 
     stage(3, "EVALUATE")

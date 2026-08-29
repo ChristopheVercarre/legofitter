@@ -48,7 +48,19 @@ EXPECTED_API = {
         "create_dataset",
         "get_datasets",
     ],
-    "app/classification/model.py": [
+    "app/classification/models/__init__.py": [
+        "available_models",
+        "load_architecture",
+    ],
+    "app/classification/models/layers.py": [],  # custom layers are classes, checked below
+    "app/classification/models/model_vgg16.py": [
+        "enable_mixed_precision",
+        "build_augmentation",
+        "initialize_model",
+        "compile_model",
+        "unfreeze_top",
+    ],
+    "app/classification/models/model_christophe.py": [
         "enable_mixed_precision",
         "build_augmentation",
         "initialize_model",
@@ -59,6 +71,9 @@ EXPECTED_API = {
         "save_history",
         "describe_splits",
         "train_model",
+    ],
+    "app/utils/format.py": [
+        "format_duration",
     ],
     "app/classification/evaluate.py": [
         "load_trained_model",
@@ -266,7 +281,11 @@ def test_dataset_calls_ensure_local_data_from_get_datasets():
 @pytest.mark.parametrize("module_name", [
     "app.params",
     "app.classification.dataset",
-    "app.classification.model",
+    "app.utils.format",
+    "app.classification.models",
+    "app.classification.models.layers",
+    "app.classification.models.model_christophe",
+    "app.classification.models.model_vgg16",
     "app.classification.train",
     "app.classification.evaluate",
     "app.classification.predict",

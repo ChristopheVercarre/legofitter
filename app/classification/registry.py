@@ -8,11 +8,14 @@ from pathlib import Path
 from google.cloud import storage
 from tensorflow import keras
 
-# Imported for its SIDE EFFECT: defining the custom layers in model.py runs
+# Imported for its SIDE EFFECT: defining the custom layers in layers.py runs
 # their @register_keras_serializable decorators, so keras.models.load_model()
 # below can reconstruct any run that uses one. Without this, loading a
 # teammate's model fails with "Could not locate class 'ColorAugmentation'".
-from app.classification import model as _model_layers  # noqa: F401
+#
+# Deliberately layers.py and not an architecture file: loading a model must
+# work whatever MODEL_NAME this machine happens to be set to.
+from app.classification.models import layers as _custom_layers  # noqa: F401
 from app.params import (
     BUCKET_NAME,
     CLASS_NAMES_PATH,

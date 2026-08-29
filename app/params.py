@@ -28,6 +28,13 @@ RANDOM_STATE = 42  # seed for every split / subsample, so runs are comparable
 BUCKET_NAME = os.environ.get("BUCKET_NAME")
 
 # --- Objective 1: Classification ---
+# Which architecture to train: app/classification/models/model_<MODEL_NAME>.py.
+# Defaults to christophe so a fresh clone (which has no .env -- it is
+# gitignored) trains without anyone configuring anything. Override in .env for
+# a machine that should always use one architecture, or per run on the command
+# line:  make run_local MODEL_NAME=oriane
+MODEL_NAME = os.getenv("MODEL_NAME", "christophe")
+
 NUM_CLASSES = int(os.getenv("NUM_CLASSES", 50))
 CLASSIFICATION_DATA_DIR = PROJECT_ROOT / os.getenv(
     "CLASSIFICATION_DATA_DIR", "data/lego-dataset-classification"
@@ -112,6 +119,19 @@ EARLY_STOPPING_PATIENCE = 30    # epochs without val_loss improvement before sto
 REDUCE_LR_PATIENCE = 5          # epochs without improvement before halving the LR
 REDUCE_LR_FACTOR = 0.5          # new_lr = old_lr * this
 MIN_LEARNING_RATE = 1e-4        # floor for ReduceLROnPlateau
+
+# --- Objective 1: transfer learning (model_vgg16.py) ---
+# Phase 2 only. How many layers at the TOP of the pretrained base to unfreeze:
+# 4 is VGG16's last conv block plus its pool. Early layers hold generic edge
+# and texture filters worth keeping exactly as ImageNet learned them.
+VGG16_FINETUNE_LAYERS = 4
+# 100x below LEARNING_RATE. Fine-tuning a pretrained base at the phase-1 rate
+# destroys the filters in a few steps -- the classic "it got worse after
+# unfreezing" failure.
+FINETUNE_LEARNING_RATE = 1e-5
+# Phase 2 runs for at most this many further epochs. Short on purpose: the
+# base is already close to right, and a long fine-tune mostly overfits.
+FINETUNE_EPOCHS = 30
 
 # float16 compute on the GPU's tensor cores. Big speedup on the T4, no effect
 # (or a slowdown) on CPU / Apple Silicon — so leave False locally, True on the VM.
