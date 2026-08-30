@@ -43,6 +43,7 @@ from keras.layers import (
 )
 from keras.optimizers import Adam
 
+from app.classification.models.layers import ColorAugmentation
 from app.params import (
     AUG_BRIGHTNESS,
     AUG_CONTRAST,
@@ -96,6 +97,12 @@ def build_augmentation() -> Sequential:
         # Photometric jitter — renders have studio lighting, phone photos do not.
         RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
         RandomContrast(AUG_CONTRAST),
+        # Saturation and hue jitter (Jules's layer, shared from layers.py).
+        # RandomBrightness/RandomContrast only move lightness; this is what
+        # varies COLOUR. The same part ID exists in red, blue, grey and more,
+        # and the renders are far more uniformly coloured than the photos, so
+        # jittering hue is what teaches "shape matters, colour does not".
+        ColorAugmentation(),
     ]
 
     return Sequential(layers, name="data_augmentation")
@@ -112,39 +119,95 @@ def initialize_model() -> Sequential:
     model.add(build_augmentation())
 
     # --- Block 1 ---------------------------------------------------------
-    model.add(Conv2D(32, (3, 3), padding="same"))
+    model.add(
+        Conv2D(
+            32,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(32, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            32,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
+    model.add(BatchNormalization())
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 2 ---------------------------------------------------------
-    model.add(Conv2D(64, (3, 3), padding="same"))
+    model.add(
+        Conv2D(
+            64,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(64, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            64,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
+    model.add(BatchNormalization())
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 3 ---------------------------------------------------------
-    model.add(Conv2D(128, (3, 3), padding="same"))
+    model.add(
+        Conv2D(
+            128,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(128, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            128,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
+    model.add(BatchNormalization())
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 4 ---------------------------------------------------------
-    model.add(Conv2D(256, (3, 3), padding="same"))
+    model.add(
+        Conv2D(
+            256,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(256, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            256,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
+    model.add(BatchNormalization())
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Head --------------------------------------------------------------

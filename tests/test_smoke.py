@@ -60,6 +60,12 @@ EXPECTED_API = {
         "compile_model",
         "unfreeze_top",
     ],
+    "app/classification/models/model_oriane.py": [
+        "enable_mixed_precision",
+        "build_augmentation",
+        "initialize_model",
+        "compile_model",
+    ],
     "app/classification/models/model_christophe.py": [
         "enable_mixed_precision",
         "build_augmentation",
@@ -285,6 +291,7 @@ def test_dataset_calls_ensure_local_data_from_get_datasets():
     "app.classification.models",
     "app.classification.models.layers",
     "app.classification.models.model_christophe",
+    "app.classification.models.model_oriane",
     "app.classification.models.model_vgg16",
     "app.classification.train",
     "app.classification.evaluate",
