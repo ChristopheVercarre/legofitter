@@ -12,7 +12,7 @@ from tensorflow import keras
 # their @register_keras_serializable decorators, so keras.models.load_model()
 # below can reconstruct any run that uses one. Without this, loading a
 # teammate's model fails with "Could not locate class 'ColorAugmentation'".
-from app.classification import model as _model_layers  # noqa: F401
+from app.classification.models import model as _model_layers  # noqa: F401
 from app.params import (
     BUCKET_NAME,
     CLASS_NAMES_PATH,
