@@ -109,7 +109,7 @@ def enable_mixed_precision() -> None:
     print("✅ Mixed precision enabled (float16 compute, float32 weights)")
 
 
-#def build_augmentation() -> Sequential:
+def build_augmentation() -> Sequential:
     """The random image transforms applied to training images only.
 
     Why this matters here: after cap_renders(), roughly two thirds of our
@@ -121,52 +121,20 @@ def enable_mixed_precision() -> None:
     that are DIFFERENT part IDs, so flipping could teach the model to
     confuse two classes.
     """
-    #layers = [
-        # Geometric jitter — a brick can be photographed at any angle, any
-        # distance, anywhere in frame. fill_mode decides what goes in the
-        # corners these transforms leave empty; see AUG_FILL_MODE in params.py.
-        #RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
-        #RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
-        #RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
-        #                  fill_mode=AUG_FILL_MODE),
-        # Photometric jitter — renders have studio lighting, phone photos do not.
-        #RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
-        #RandomContrast(AUG_CONTRAST),
+    layers = [
+        Geometric jitter — a brick can be photographed at any angle, any
+        distance, anywhere in frame. fill_mode decides what goes in the
+        corners these transforms leave empty; see AUG_FILL_MODE in params.py.
+        RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
+        RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
+        RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
+                         fill_mode=AUG_FILL_MODE),
+        Photometric jitter — renders have studio lighting, phone photos do not.
+        RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
+        RandomContrast(AUG_CONTRAST),
     ]
 
-    #return Sequential(layers, name="data_augmentation")
-
-@tf.keras.utils.register_keras_serializable(package="LegoFitter")
-class ColorAugmentation(layers.Layer):
-
-    def call(self, images, training=None):
-
-        # Pas d'augmentation pendant predict / evaluate
-        if not training:
-            return images
-
-        images = tf.image.random_brightness(
-            images,
-            max_delta=0.10
-        )
-
-        images = tf.image.random_saturation(
-            images,
-            lower=0.7,
-            upper=1.3
-        )
-
-        images = tf.image.random_hue(
-            images,
-            max_delta=0.08
-        )
-
-        return tf.clip_by_value(
-            images,
-            0.0,
-            1.0
-        )
-
+    return Sequential(layers, name="data_augmentation")
 
 def initialize_model() -> Sequential:
     """Build (but do not compile) the classifier."""
@@ -176,42 +144,42 @@ def initialize_model() -> Sequential:
     # numbers immediately instead of "unbuilt".
     model.add(Input(shape=(*IMG_SIZE, 3)))
 
-    #model.add(build_augmentation())
+    model.add(build_augmentation())
 
     # --- Block 1 ---------------------------------------------------------
-    model.add(Conv2D(32, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
-    model.add(Conv2D(32, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
+    model.add(Conv2D(32, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
+    model.add(Conv2D(32, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 2 ---------------------------------------------------------
-    model.add(Conv2D(64, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
-    model.add(Conv2D(64, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
+    model.add(Conv2D(64, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
+    model.add(Conv2D(64, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 3 ---------------------------------------------------------
-    model.add(Conv2D(128, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
-    model.add(Conv2D(128, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
+    model.add(Conv2D(128, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
+    model.add(Conv2D(128, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 4 ---------------------------------------------------------
-    model.add(Conv2D(256, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
-    model.add(Conv2D(256, (3, 3), padding="same"),
-    model.add(BatchNormalization()),
-    model.add(Activation("silu"),
+    model.add(Conv2D(256, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
+    model.add(Conv2D(256, (3, 3), padding="same")
+    model.add(BatchNormalization())
+    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Head --------------------------------------------------------------

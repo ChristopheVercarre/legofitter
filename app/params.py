@@ -21,7 +21,7 @@ MODELS_DIR = PROJECT_ROOT / os.getenv("MODELS_DIR", "models")
 # override it:  make run_vm IMG_SIZE=256
 _img_px = int(os.getenv("IMG_SIZE", 128))
 IMG_SIZE = (_img_px, _img_px)
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 
 RANDOM_STATE = 42  # seed for every split / subsample, so runs are comparable
 
