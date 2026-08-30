@@ -20,13 +20,16 @@ from pathlib import Path
 
 from app.params import MODEL_NAME
 
-MODELS_DIR = Path(__file__).parent
+# The folder holding the model_<name>.py files -- NOT params.MODELS_DIR,
+# which is where trained runs are stored. Named apart so the two cannot be
+# confused now that models/ is split into classification/ and detection/.
+ARCHITECTURES_DIR = Path(__file__).parent
 PREFIX = "model_"
 
 
 def available_models() -> list[str]:
     """Every name MODEL_NAME accepts: the model_<name>.py files in this folder."""
-    return sorted(p.stem[len(PREFIX):] for p in MODELS_DIR.glob(f"{PREFIX}*.py"))
+    return sorted(p.stem[len(PREFIX):] for p in ARCHITECTURES_DIR.glob(f"{PREFIX}*.py"))
 
 
 def load_architecture(name: str = None):
