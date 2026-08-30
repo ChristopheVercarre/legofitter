@@ -159,11 +159,26 @@ def split_pairs(pairs: list) -> dict[str, list]:
     }
 
 
-def copy_split(split_name: str, pairs: list) -> None:
-    """Copy one split's images and labels into the YOLO folder."""
+def link_split(split_name: str, pairs: list) -> None:
+    """Point one split's images and labels at the source files, without copying.
+
+    YOLO only ever reads these files, and it finds them through data.yaml -- it
+    never cares whether what it opens is a real file or a symlink. Copying would
+    write a second full copy of the dataset (~6 GB) to disk for no benefit, which
+    on the VM is the difference between a step that finishes in seconds and one
+    that fills the disk.
+
+    Symlinks are not available everywhere (Windows without developer mode, some
+    network drives), so a failure falls back to a real copy rather than stopping
+    the run.
+    """
     for image_file, label_file in pairs:
-        shutil.copy2(image_file, YOLO_DATA_DIR / "images" / split_name / image_file.name)
-        shutil.copy2(label_file, YOLO_DATA_DIR / "labels" / split_name / label_file.name)
+        for source, kind in ((image_file, "images"), (label_file, "labels")):
+            destination = YOLO_DATA_DIR / kind / split_name / source.name
+            try:
+                destination.symlink_to(source.resolve())
+            except OSError:
+                shutil.copy2(source, destination)
 
 
 def write_dataset_yaml() -> None:
@@ -203,7 +218,7 @@ def prepare_data() -> dict[str, list]:
     reset_target_dirs()
     splits = split_pairs(pairs)
     for split_name in SPLITS:
-        copy_split(split_name, splits[split_name])
+        link_split(split_name, splits[split_name])
     print(
         f"✅ Split: {len(splits['train']):,} train / "
         f"{len(splits['val']):,} val / {len(splits['test']):,} test"

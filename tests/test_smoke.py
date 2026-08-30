@@ -92,7 +92,7 @@ EXPECTED_API = {
         "find_image_label_pairs",
         "reset_target_dirs",
         "split_pairs",
-        "copy_split",
+        "link_split",
         "write_dataset_yaml",
         "prepare_data",
     ],
