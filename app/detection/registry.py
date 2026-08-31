@@ -37,6 +37,7 @@ from app.params import (
     DETECTION_MODELS_DIR,
     DETECTION_RESULTS_PATH,
     GCS_DETECTION_MODELS,
+    YOLO_DATASET_YAML,
 )
 
 # What a run folder holds, and where each file lands in current/.
@@ -59,6 +60,27 @@ def is_run_complete(run_dir) -> bool:
     return (run_dir / "weights" / "best.pt").exists() and (run_dir / "data.yaml").exists()
 
 
+def _archive_dataset_yaml(run_dir) -> None:
+    """Copy this machine's data.yaml into the run folder.
+
+    ultralytics writes weights/, results.csv and args.yaml -- but NOT
+    data.yaml, only a `data:` path inside args.yaml pointing at wherever the
+    dataset happened to live on the training machine. That path is worthless
+    six months from now on a different machine, and worthless in the bucket.
+
+    So the run archives its own copy. Not for its paths -- evaluate() uses THIS
+    machine's yaml for those -- but for the class map: best.pt emits class
+    index 0 and nothing else, and this file is the only record of what 0 meant.
+    """
+    destination = run_dir / "data.yaml"
+    if destination.exists():
+        return
+    if YOLO_DATASET_YAML.exists():
+        shutil.copy2(YOLO_DATASET_YAML, destination)
+    else:
+        print(f"⚠️  {YOLO_DATASET_YAML} not found -- run has no class map archived")
+
+
 def save_run(name: str) -> str:
     """Upload one run folder to the bucket and promote it to current/.
 
@@ -67,6 +89,7 @@ def save_run(name: str) -> str:
     to publish. Returns the run name.
     """
     run_dir = DETECTION_MODELS_DIR / name
+    _archive_dataset_yaml(run_dir)
 
     if not is_run_complete(run_dir):
         print(f"⚠️  {run_dir} has no best.pt + data.yaml -- nothing uploaded")
