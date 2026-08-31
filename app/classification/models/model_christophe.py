@@ -26,7 +26,6 @@ Most numbers here come from app/params.py so experiments are a one-line edit
 in one file rather than a hunt through this module.
 """
 
-import tensorflow as tf
 from keras import Input, Sequential, mixed_precision, regularizers
 from keras.layers import (
     BatchNormalization,
@@ -57,41 +56,6 @@ from app.params import (
     LEARNING_RATE,
     NUM_CLASSES,
 )
-
-
-# --- Custom layers -------------------------------------------------------
-# Custom layers MUST live here rather than in a notebook. A .keras file stores
-# a layer's NAME and config, never its code, so Keras can only rebuild a model
-# whose custom classes are importable at load time. A layer defined only in
-# someone's notebook makes their model unloadable by everyone else -- which is
-# exactly what happened with the model below before this moved into the repo.
-#
-# registry.py imports this module for that reason: it guarantees the decorator
-# below has run before load_model() tries to reconstruct anything.
-
-
-@tf.keras.utils.register_keras_serializable(package="LegoFitter")
-class ColorAugmentation(tf.keras.layers.Layer):
-    """Random brightness / saturation / hue jitter, training only.
-
-    Written by Jules for his JV1_silu_img-size224 runs; kept here so his
-    models (and anyone else's that use it) load on every machine.
-
-    Note the `if not training` guard: like Keras's own augmentation layers,
-    this is a no-op during predict and evaluate, so it changes what the model
-    LEARNS but never what it PREDICTS.
-    """
-
-    def call(self, images, training=None):
-        # No augmentation during predict / evaluate
-        if not training:
-            return images
-
-        images = tf.image.random_brightness(images, max_delta=0.10)
-        images = tf.image.random_saturation(images, lower=0.7, upper=1.3)
-        images = tf.image.random_hue(images, max_delta=0.08)
-
-        return tf.clip_by_value(images, 0.0, 1.0)
 
 
 def enable_mixed_precision() -> None:

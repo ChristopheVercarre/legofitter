@@ -8,17 +8,21 @@ from pathlib import Path
 from google.cloud import storage
 from tensorflow import keras
 
-# Imported for its SIDE EFFECT: defining the custom layers in model.py runs
+# Imported for its SIDE EFFECT: defining the custom layers in layers.py runs
 # their @register_keras_serializable decorators, so keras.models.load_model()
 # below can reconstruct any run that uses one. Without this, loading a
 # teammate's model fails with "Could not locate class 'ColorAugmentation'".
-from app.classification import model as _model_layers  # noqa: F401
+#
+# Deliberately layers.py and not an architecture file: loading a model must
+# work whatever MODEL_NAME this machine happens to be set to.
+from app.classification.models import layers as _custom_layers  # noqa: F401
 from app.params import (
     BUCKET_NAME,
     CLASS_NAMES_PATH,
     CLASSIFICATION_MODEL_PATH,
     HISTORY_PATH,
-    MODELS_DIR,
+    CLASSIFICATION_MODELS_DIR,
+    GCS_CLASSIFICATION_MODELS,
 )
 
 
@@ -27,9 +31,9 @@ def save_model(model: keras.Model = None, name: str = None) -> str:
 
     A run is three files that only mean anything together:
 
-        models/<name>/classifier.keras      the architecture + weights
-        models/<name>/class_names.json      index -> part ID, from dataset.py
-        models/<name>/history.json          the loss/accuracy curves
+        models/classification/<name>/classifier.keras   architecture + weights
+        models/classification/<name>/class_names.json   index -> part ID
+        models/classification/<name>/history.json       the loss/accuracy curves
 
     The model alone is not a usable artifact. It emits 50 probabilities and
     has no idea that slot 37 means part 3001 -- that mapping lives in
@@ -50,7 +54,7 @@ def save_model(model: keras.Model = None, name: str = None) -> str:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         name = f"{timestamp}_{os.environ.get('USER', 'unknown')}"
 
-    run_dir = MODELS_DIR / name
+    run_dir = CLASSIFICATION_MODELS_DIR / name
     run_dir.mkdir(parents=True, exist_ok=True)
 
     model.save(run_dir / "classifier.keras")
@@ -74,11 +78,11 @@ def save_model(model: keras.Model = None, name: str = None) -> str:
     bucket = client.bucket(BUCKET_NAME)
 
     for path in sorted(run_dir.iterdir()):
-        blob = bucket.blob(f"models/{name}/{path.name}")
+        blob = bucket.blob(f"{GCS_CLASSIFICATION_MODELS}/{name}/{path.name}")
         blob.upload_from_filename(path)
         print(f"   uploaded {blob.name}")
 
-    print(f"✅ Run uploaded to gs://{BUCKET_NAME}/models/{name}/")
+    print(f"✅ Run uploaded to gs://{BUCKET_NAME}/{GCS_CLASSIFICATION_MODELS}/{name}/")
 
     return name
 
@@ -131,7 +135,7 @@ def _latest_run_name(bucket) -> str:
     cannot open.
     """
     blobs = [
-        blob for blob in bucket.list_blobs(prefix="models/")
+        blob for blob in bucket.list_blobs(prefix=f"{GCS_CLASSIFICATION_MODELS}/")
         if blob.name.endswith("/classifier.keras")
     ]
 
@@ -140,7 +144,7 @@ def _latest_run_name(bucket) -> str:
 
     latest = max(blobs, key=lambda blob: blob.updated)
 
-    # "models/<name>/classifier.keras" -> "<name>"
+    # "models/classification/<name>/classifier.keras" -> "<name>"
     return latest.name.split("/")[1]
 
 
@@ -171,7 +175,7 @@ def load_model(model_name: str = None, force_download: bool = False) -> keras.Mo
     safe precisely because run folders are IMMUTABLE: the name carries a
     timestamp and save_model() never overwrites one, so a local copy cannot
     have drifted from the bucket's. (The same shortcut would be wrong for
-    models/current/, which every run overwrites.) It also means a named run
+    models/classification/current/, which every run overwrites.) It also means a named run
     loads with no network at all.
 
     Passing no name means "whatever is newest in the bucket", which only the
@@ -185,7 +189,7 @@ def load_model(model_name: str = None, force_download: bool = False) -> keras.Mo
 
     Return None (but do not raise) if no run is found.
     """
-    run_dir = MODELS_DIR / model_name if model_name else None
+    run_dir = CLASSIFICATION_MODELS_DIR / model_name if model_name else None
 
     # --- Fast path: a complete local copy of a named run ------------------
     if model_name and not force_download and is_run_complete(run_dir):
@@ -203,14 +207,14 @@ def load_model(model_name: str = None, force_download: bool = False) -> keras.Mo
                 print(f"\n❌ No run found in GCS bucket {BUCKET_NAME}")
                 return None
 
-            run_dir = MODELS_DIR / model_name
+            run_dir = CLASSIFICATION_MODELS_DIR / model_name
 
             # The newest run may already be here from a previous call.
             if not force_download and is_run_complete(run_dir):
                 print(f"✅ Newest run is {model_name}, already here locally")
                 return _finalise_load(model_name, run_dir)
 
-        prefix = f"models/{model_name}/"
+        prefix = f"{GCS_CLASSIFICATION_MODELS}/{model_name}/"
         blobs = list(bucket.list_blobs(prefix=prefix))
 
         if not blobs:
@@ -245,7 +249,7 @@ def _finalise_load(model_name: str, run_dir) -> keras.Model:
     # call. Overwriting is intended: the run you just asked for is the one
     # you want to be current.
     #
-    # models/current/ is normally created by training (build_callbacks and
+    # models/classification/current/ is normally created by training (build_callbacks and
     # save_class_names both mkdir it). On a machine that has NEVER trained --
     # a teammate who clones the repo and downloads a model straight from the
     # bucket -- it does not exist yet, and these copies would fail. So create

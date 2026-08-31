@@ -21,6 +21,7 @@ from keras.models import load_model as load_keras_model
 
 from app.classification import registry
 from app.classification.dataset import create_dataset, get_datasets
+from app.utils.format import format_duration
 from app.classification.registry import model_input_size
 from app.params import (
     CLASSIFICATION_ACCURACY_TARGET,
@@ -35,7 +36,7 @@ def load_trained_model():
     There are two places a trained model can live, and they answer
     different questions:
 
-      - CLASSIFICATION_MODEL_PATH (models/current/classifier.keras) is the checkpoint
+      - CLASSIFICATION_MODEL_PATH (models/classification/current/classifier.keras) is the checkpoint
         THIS machine's train.py just wrote via ModelCheckpoint. Loading it is
         free (no network call) and it's the freshest thing this machine has
         trained.
@@ -100,7 +101,12 @@ def _load_curves(history=None) -> dict | None:
     train and val numbers rather than only the test ones.
     """
     if history is not None:
-        return history.history if hasattr(history, "history") else history
+        curves = history.history if hasattr(history, "history") else dict(history)
+        # run_info lives on the History OBJECT, not inside history.history --
+        # merged in here (as a copy) so an in-memory summary shows the same
+        # extra facts as one read back from history.json.
+        run_info = getattr(history, "run_info", None)
+        return {**curves, "run_info": run_info} if run_info else curves
 
     if HISTORY_PATH.exists():
         return json.loads(HISTORY_PATH.read_text())
@@ -133,6 +139,19 @@ def summarise(test_all: float, test_photos: float, history=None) -> bool:
     print("Run summary")
     print("=" * 60)
 
+    # What this run was configured as. Read from run_info rather than params,
+    # so summarising an OLD run reports the settings it was TRAINED with, not
+    # whatever this machine happens to be set to now.
+    config = (_load_curves(history) or {}).get("run_info") or {}
+    if config.get("model_name"):
+        width, height = config.get("img_size") or (None, None)
+        print(f"  Model               model_{config['model_name']}.py")
+        if width:
+            print(f"  Input size          {width}x{height}")
+        if config.get("num_classes"):
+            print(f"  Classes             {config['num_classes']}")
+        print("-" * 60)
+
     if curves and "val_loss" in curves:
         val_losses = curves["val_loss"]
         best = min(range(len(val_losses)), key=lambda i: val_losses[i])
@@ -151,6 +170,45 @@ def summarise(test_all: float, test_photos: float, history=None) -> bool:
     else:
         print(f"  (no training curves at {HISTORY_PATH} -- test scores only)")
         print("-" * 60)
+
+    # Only present for runs trained since run_info was added; older runs and
+    # hand-saved models simply skip these two blocks.
+    run_info = (curves or {}).get("run_info")
+    if run_info:
+        splits = run_info.get("splits") or {}
+        if splits:
+            print(f"  {'Split':<8}{'photos':>10}{'renders':>10}{'total':>10}")
+            totals = {"photos": 0, "renders": 0, "total": 0}
+            for name in ("train", "val", "test"):
+                counts = splits.get(name)
+                if counts:
+                    print(f"  {name:<8}{counts['photos']:>10,}"
+                          f"{counts['renders']:>10,}{counts['total']:>10,}")
+                    for key in totals:
+                        totals[key] += counts[key]
+
+            # The dataset the run actually saw, after select_classes(),
+            # filter_blurry() and cap_renders() -- not the raw folder counts.
+            print(f"  {'':<8}{'-' * 10}{'-' * 10}{'-' * 10}")
+            print(f"  {'total':<8}{totals['photos']:>10,}"
+                  f"{totals['renders']:>10,}{totals['total']:>10,}")
+
+        # Photos the blur filter threw away before any of the above was split.
+        blur = run_info.get("blur") or {}
+        if blur.get("photos_checked"):
+            share = blur["dropped"] / blur["photos_checked"] * 100
+            print(f"  Blurry dropped      {blur['dropped']:,} of "
+                  f"{blur['photos_checked']:,} photos ({share:.1f}%), "
+                  f"threshold {blur['threshold']}")
+        print("-" * 60)
+
+        seconds = run_info.get("training_seconds")
+        if seconds:
+            epochs = run_info.get("epochs") or 0
+            per_epoch = f", {format_duration(seconds / epochs)}/epoch" if epochs else ""
+            print(f"  Training time       {format_duration(seconds)}"
+                  f"  ({epochs} epochs{per_epoch})")
+            print("-" * 60)
 
     print(f"  Test accuracy       {test_all:.4f}   (all: photos + renders)")
     print(f"  Test accuracy       {test_photos:.4f}   (real photos only)")

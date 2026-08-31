@@ -48,7 +48,19 @@ EXPECTED_API = {
         "create_dataset",
         "get_datasets",
     ],
-    "app/classification/model.py": [
+    "app/classification/models/__init__.py": [
+        "available_models",
+        "load_architecture",
+    ],
+    "app/classification/models/layers.py": [],  # custom layers are classes, checked below
+    "app/classification/models/model_vgg16.py": [
+        "enable_mixed_precision",
+        "build_augmentation",
+        "initialize_model",
+        "compile_model",
+        "unfreeze_top",
+    ],
+    "app/classification/models/model_christophe.py": [
         "enable_mixed_precision",
         "build_augmentation",
         "initialize_model",
@@ -60,6 +72,9 @@ EXPECTED_API = {
         "describe_splits",
         "train_model",
     ],
+    "app/utils/format.py": [
+        "format_duration",
+    ],
     "app/classification/evaluate.py": [
         "load_trained_model",
         "evaluate_model",
@@ -69,6 +84,34 @@ EXPECTED_API = {
     "app/classification/predict.py": [
         "load_image_for_prediction",
         "predict_image",
+    ],
+    "app/detection/prepare_data.py": [
+        "find_source_files",
+        "convert_box_to_yolo",
+        "convert_xml_to_yolo_txt",
+        "find_image_label_pairs",
+        "reset_target_dirs",
+        "split_pairs",
+        "link_split",
+        "write_dataset_yaml",
+        "prepare_data",
+    ],
+    "app/detection/train.py": [
+        "build_run_name",
+        "train_model",
+    ],
+    "app/detection/evaluate.py": [
+        "evaluate",
+        "summarise",
+    ],
+    "app/detection/main.py": [
+        "describe_dataset",
+        "detect",
+    ],
+    "app/detection/registry.py": [
+        "is_run_complete",
+        "save_run",
+        "load_detector",
     ],
     "app/classification/registry.py": [
         "model_input_size",
@@ -89,6 +132,12 @@ EXPECTED_PARAMS = [
     "RANDOM_STATE",
     "BUCKET_NAME",
     "MODELS_DIR",
+    "CLASSIFICATION_MODELS_DIR",
+    "DETECTION_MAP_TARGET",
+    "DETECTION_MODELS_DIR",
+    "DETECTION_CURRENT_DIR",
+    "GCS_CLASSIFICATION_MODELS",
+    "GCS_DETECTION_MODELS",
     "CURRENT_RUN_DIR",
     "CLASSIFICATION_DATA_DIR",
     "GCS_CLASSIFICATION_DATA",
@@ -266,7 +315,11 @@ def test_dataset_calls_ensure_local_data_from_get_datasets():
 @pytest.mark.parametrize("module_name", [
     "app.params",
     "app.classification.dataset",
-    "app.classification.model",
+    "app.utils.format",
+    "app.classification.models",
+    "app.classification.models.layers",
+    "app.classification.models.model_christophe",
+    "app.classification.models.model_vgg16",
     "app.classification.train",
     "app.classification.evaluate",
     "app.classification.predict",
