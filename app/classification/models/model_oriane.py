@@ -73,32 +73,32 @@ def enable_mixed_precision() -> None:
     print("✅ Mixed precision enabled (float16 compute, float32 weights)")
 
 
-def build_augmentation() -> Sequential:
-    """The random image transforms applied to training images only.
+# def build_augmentation() -> Sequential:
+#     """The random image transforms applied to training images only.
 
-    Why this matters here: after cap_renders(), roughly two thirds of our
-    training images are synthetic renders — clean, evenly lit, centred. Real
-    photos are none of those things. Augmentation is what stops the model
-    learning "render-ness" instead of brick shape.
+#     Why this matters here: after cap_renders(), roughly two thirds of our
+#     training images are synthetic renders — clean, evenly lit, centred. Real
+#     photos are none of those things. Augmentation is what stops the model
+#     learning "render-ness" instead of brick shape.
 
-    No horizontal flip: LEGO has mirrored part pairs (left/right wedges)
-    that are DIFFERENT part IDs, so flipping could teach the model to
-    confuse two classes.
-    """
-    layers = [
-        # Geometric jitter — a brick can be photographed at any angle, any
-        # distance, anywhere in frame. fill_mode decides what goes in the
-        # corners these transforms leave empty; see AUG_FILL_MODE in params.py.
-        RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
-        RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
-        RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
-                          fill_mode=AUG_FILL_MODE),
-        # Photometric jitter — renders have studio lighting, phone photos do not.
-        RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
-        RandomContrast(AUG_CONTRAST),
-    ]
+#     No horizontal flip: LEGO has mirrored part pairs (left/right wedges)
+#     that are DIFFERENT part IDs, so flipping could teach the model to
+#     confuse two classes.
+#     """
+#     layers = [
+#         # Geometric jitter — a brick can be photographed at any angle, any
+#         # distance, anywhere in frame. fill_mode decides what goes in the
+#         # corners these transforms leave empty; see AUG_FILL_MODE in params.py.
+#         RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
+#         RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
+#         RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
+#                           fill_mode=AUG_FILL_MODE),
+#         # Photometric jitter — renders have studio lighting, phone photos do not.
+#         RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
+#         RandomContrast(AUG_CONTRAST),
+#     ]
 
-    return Sequential(layers, name="data_augmentation")
+#     return Sequential(layers, name="data_augmentation")
 
 
 def initialize_model() -> Sequential:
@@ -109,42 +109,42 @@ def initialize_model() -> Sequential:
     # numbers immediately instead of "unbuilt".
     model.add(Input(shape=(*IMG_SIZE, 3)))
 
-    model.add(build_augmentation())
+    # model.add(build_augmentation())
 
     # --- Block 1 ---------------------------------------------------------
-    model.add(Conv2D(32, (3, 3), padding="same"))
+    model.add(Conv2D(32, (3, 3), padding="same", use_bias=False)))
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(32, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("SiLu"))
+    model.add(Conv2D(32, (3, 3), padding="same", use_bias=False)))
+    model.add(BatchNormalization())
+    model.add(Activation("SiLu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 2 ---------------------------------------------------------
-    model.add(Conv2D(64, (3, 3), padding="same"))
+    model.add(Conv2D(64, (3, 3), padding="same", use_bias=False))
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(64, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("SiLu"))
+    model.add(Conv2D(64, (3, 3), padding="same", use_bias=False))
+    model.add(BatchNormalization())
+    model.add(Activation("SiLu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 3 ---------------------------------------------------------
-    model.add(Conv2D(128, (3, 3), padding="same"))
+    model.add(Conv2D(128, (3, 3), padding="same", use_bias=False))
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(128, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("SiLu"))
+    model.add(Conv2D(128, (3, 3), padding="same", use_bias=False))
+    model.add(BatchNormalization())
+    model.add(Activation("SiLu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 4 ---------------------------------------------------------
-    model.add(Conv2D(256, (3, 3), padding="same"))
+    model.add(Conv2D(256, (3, 3), padding="same", use_bias=False))
     model.add(BatchNormalization())
-    model.add(Activation("Relu"),
-    model.add(Conv2D(256, (3, 3), padding="same"))
-    model.add(BatchNormalization()),
-    model.add(Activation("Relu"),
+    model.add(Activation("SiLu"))
+    model.add(Conv2D(256, (3, 3), padding="same", use_bias=False))
+    model.add(BatchNormalization())
+    model.add(Activation("SiLu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Head --------------------------------------------------------------
@@ -158,7 +158,7 @@ def initialize_model() -> Sequential:
     model.add(
         Dense(
             DENSE_UNITS,
-            activation="relu",
+            activation="SiLu",
             kernel_regularizer=regularizers.l2(L2_REG),
         )
     )

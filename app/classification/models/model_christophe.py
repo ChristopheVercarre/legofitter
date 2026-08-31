@@ -26,7 +26,6 @@ Most numbers here come from app/params.py so experiments are a one-line edit
 in one file rather than a hunt through this module.
 """
 
-import tensorflow as tf
 from keras import Input, Sequential, mixed_precision, regularizers
 from keras.layers import (
     BatchNormalization,
@@ -40,7 +39,6 @@ from keras.layers import (
     RandomRotation,
     RandomTranslation,
     RandomZoom,
-    Activation
 )
 from keras.optimizers import Adam
 
@@ -58,41 +56,6 @@ from app.params import (
     LEARNING_RATE,
     NUM_CLASSES,
 )
-
-
-# --- Custom layers -------------------------------------------------------
-# Custom layers MUST live here rather than in a notebook. A .keras file stores
-# a layer's NAME and config, never its code, so Keras can only rebuild a model
-# whose custom classes are importable at load time. A layer defined only in
-# someone's notebook makes their model unloadable by everyone else -- which is
-# exactly what happened with the model below before this moved into the repo.
-#
-# registry.py imports this module for that reason: it guarantees the decorator
-# below has run before load_model() tries to reconstruct anything.
-
-
-@tf.keras.utils.register_keras_serializable(package="LegoFitter")
-class ColorAugmentation(tf.keras.layers.Layer):
-    """Random brightness / saturation / hue jitter, training only.
-
-    Written by Jules for his JV1_silu_img-size224 runs; kept here so his
-    models (and anyone else's that use it) load on every machine.
-
-    Note the `if not training` guard: like Keras's own augmentation layers,
-    this is a no-op during predict and evaluate, so it changes what the model
-    LEARNS but never what it PREDICTS.
-    """
-
-    def call(self, images, training=None):
-        # No augmentation during predict / evaluate
-        if not training:
-            return images
-
-        images = tf.image.random_brightness(images, max_delta=0.10)
-        images = tf.image.random_saturation(images, lower=0.7, upper=1.3)
-        images = tf.image.random_hue(images, max_delta=0.08)
-
-        return tf.clip_by_value(images, 0.0, 1.0)
 
 
 def enable_mixed_precision() -> None:
@@ -122,14 +85,14 @@ def build_augmentation() -> Sequential:
     confuse two classes.
     """
     layers = [
-        Geometric jitter — a brick can be photographed at any angle, any
-        distance, anywhere in frame. fill_mode decides what goes in the
-        corners these transforms leave empty; see AUG_FILL_MODE in params.py.
+        # Geometric jitter — a brick can be photographed at any angle, any
+        # distance, anywhere in frame. fill_mode decides what goes in the
+        # corners these transforms leave empty; see AUG_FILL_MODE in params.py.
         RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
         RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
         RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
-                         fill_mode=AUG_FILL_MODE),
-        Photometric jitter — renders have studio lighting, phone photos do not.
+                          fill_mode=AUG_FILL_MODE),
+        # Photometric jitter — renders have studio lighting, phone photos do not.
         RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
         RandomContrast(AUG_CONTRAST),
     ]
@@ -147,39 +110,30 @@ def initialize_model() -> Sequential:
     model.add(build_augmentation())
 
     # --- Block 1 ---------------------------------------------------------
-    model.add(Conv2D(32, (3, 3), padding="same")
+    model.add(Conv2D(32, (3, 3), padding="same", activation="relu",
+                     kernel_regularizer=regularizers.l2(L2_REG)))
     model.add(BatchNormalization())
-    model.add(Activation("silu")
-    model.add(Conv2D(32, (3, 3), padding="same")
+    model.add(Conv2D(32, (3, 3), padding="same", activation="relu",
+                     kernel_regularizer=regularizers.l2(L2_REG)))
     model.add(BatchNormalization())
-    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 2 ---------------------------------------------------------
-    model.add(Conv2D(64, (3, 3), padding="same")
+    model.add(Conv2D(64, (3, 3), padding="same", activation="relu",
+                     kernel_regularizer=regularizers.l2(L2_REG)))
     model.add(BatchNormalization())
-    model.add(Activation("silu")
-    model.add(Conv2D(64, (3, 3), padding="same")
+    model.add(Conv2D(64, (3, 3), padding="same", activation="relu",
+                     kernel_regularizer=regularizers.l2(L2_REG)))
     model.add(BatchNormalization())
-    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 3 ---------------------------------------------------------
-    model.add(Conv2D(128, (3, 3), padding="same")
+    model.add(Conv2D(128, (3, 3), padding="same", activation="relu",
+                     kernel_regularizer=regularizers.l2(L2_REG)))
     model.add(BatchNormalization())
-    model.add(Activation("silu")
-    model.add(Conv2D(128, (3, 3), padding="same")
+    model.add(Conv2D(128, (3, 3), padding="same", activation="relu",
+                     kernel_regularizer=regularizers.l2(L2_REG)))
     model.add(BatchNormalization())
-    model.add(Activation("silu")
-    model.add(MaxPooling2D((2, 2)))
-
-    # --- Block 4 ---------------------------------------------------------
-    model.add(Conv2D(256, (3, 3), padding="same")
-    model.add(BatchNormalization())
-    model.add(Activation("silu")
-    model.add(Conv2D(256, (3, 3), padding="same")
-    model.add(BatchNormalization())
-    model.add(Activation("silu")
     model.add(MaxPooling2D((2, 2)))
 
     # --- Head --------------------------------------------------------------
@@ -193,7 +147,7 @@ def initialize_model() -> Sequential:
     model.add(
         Dense(
             DENSE_UNITS,
-            activation="silu",
+            activation="relu",
             kernel_regularizer=regularizers.l2(L2_REG),
         )
     )

@@ -88,7 +88,7 @@ objective).
    classes to keep (e.g. the ones with the most real photos, so we're not
    training mostly on synthetic renders), build the working subset, and
    set up train/val/test splits + a PyTorch `Dataset`/`DataLoader`.
-2. **Build & train the CNN** (`app/classification/model.py`,
+2. **Build & train the CNN** (`app/classification/models/model_christophe.py`,
    `app/classification/train.py`) — design the architecture, train it,
    checkpoint the best epoch.
 3. **Evaluate** (`app/classification/evaluate.py`) — score top-1 accuracy

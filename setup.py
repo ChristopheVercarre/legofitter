@@ -11,7 +11,7 @@ two useful things:
      datascientist_deliverable.ipynb.
 
   2. The `-e` (editable) flag means pip installs a LINK to this directory
-     rather than a copy. Edit app/classification/model.py and the change is
+     rather than a copy. Edit app/classification/models/model_christophe.py and the change is
      live immediately — no reinstall. Without -e you would be running a stale
      snapshot of the code every time, which is a genuinely confusing bug to
      chase.

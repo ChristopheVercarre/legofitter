@@ -4,18 +4,32 @@
 # Falls back to .env, then to 128 (see app/params.py).
 IMG_SIZE ?= 128
 
+# Which architecture to train:  make run_local MODEL_NAME=oriane
+# Deliberately NOT given a default here: setting one would export MODEL_NAME on
+# every run, and an exported variable beats .env (load_dotenv does not override
+# what is already in the environment). Left unset, .env decides -- and if there
+# is no .env either, params.py falls back to christophe.
+MODEL_NAME_ENV = $(if $(MODEL_NAME),MODEL_NAME=$(MODEL_NAME))
+
+# float16 on the T4's tensor cores. ON for run_vm because the VM always has the
+# GPU -- nobody should have to remember this. Turn it off for one run with
+#   make run_vm USE_MIXED_PRECISION=false
+# run_local deliberately does NOT set it: a laptop has no tensor cores, so
+# there it stays off (params.py defaults to False).
+USE_MIXED_PRECISION ?= true
+
 # The only way to train. Trains, archives the run to the GCS bucket, evaluates.
 #
 # There is deliberately no "train without saving" target: models/current/ is
 # overwritten by every run, so a training run that is not archived by
 # save_model() is lost the moment the next one starts.
 run_vm:
-	IMG_SIZE=$(IMG_SIZE) MACHINE=vm python run_training.py
+	IMG_SIZE=$(IMG_SIZE) MACHINE=vm $(MODEL_NAME_ENV) python run_training.py
 
 # Same training run on a laptop. Archived as classifier_local_... so a run
 # trained off the VM is never mistaken for one that came from it.
 run_local:
-	IMG_SIZE=$(IMG_SIZE) MACHINE=local python run_training.py
+	IMG_SIZE=$(IMG_SIZE) MACHINE=local $(MODEL_NAME_ENV) python run_training.py
 
 # Build the splits and print their composition, without training.
 prepare_data:
