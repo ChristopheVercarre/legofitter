@@ -40,6 +40,7 @@ tensorflow[and-cuda]==2.16.1; sys_platform == 'linux' and platform_machine == 'x
 tensorflow==2.16.1; sys_platform == 'linux' and platform_machine != 'x86_64'
 tensorflow==2.16.1; sys_platform != 'linux'
 
+
 # --- Phase 2: Object Detection (YOLOv5) ---
 ultralytics
 seaborn==0.13.2
@@ -52,3 +53,10 @@ requests==2.32.3
 # reads this file -- a few MB, and it means the test suite works on every
 # machine without a separate install step.
 pytest==8.2.2
+
+
+# --- API ---
+fastapi==0.115.0
+uvicorn==0.30.6
+httpx==0.27.2
+pytest-asyncio==0.24.0

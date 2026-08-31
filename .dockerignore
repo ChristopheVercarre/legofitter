@@ -1,0 +1,9 @@
+.git
+.env
+.envrc
+data/
+models/
+notebooks/
+__pycache__/
+*.pyc
+.DS_Store
