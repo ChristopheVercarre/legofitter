@@ -23,7 +23,7 @@ import sys
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 
 from app.detection.registry import load_detector
 from app.params import DETECTION_CONFIDENCE, DETECTION_CROP_PADDING
@@ -143,6 +143,48 @@ def crop_boxes(
             ))
         )
     return crops
+
+
+def draw_boxes(
+    image, boxes: list[dict], labels: list[str] | None = None
+) -> Image.Image:
+    """Draw every box in `boxes` on a COPY of `image`, return that copy.
+
+    The source is never mutated: draw_boxes() only ever reads what
+    predict_boxes() found, so calling it more than once on the same photo
+    (once to look at, once to save) never draws the same box twice on top
+    of itself.
+
+    `labels`, when given, must be the same length and IN THE SAME ORDER as
+    `boxes` -- e.g. Objective 3's classifier output ("3001 94%") per box,
+    so the picture shows what each box was classified as, not just that
+    something was detected there. Left as None, each box is labelled with
+    its own detection confidence instead, which is enough to sanity-check
+    the detector alone (README Objective 3 Step 2).
+
+    Uses PIL's default bitmap font on purpose: no font file to ship or look
+    up across machines. Small and not pretty, but always available. Pass
+    your own font by wrapping this function if you need bigger labels for
+    a report or a slide.
+    """
+    picture = load_image_for_detection(image).copy()
+    draw = ImageDraw.Draw(picture)
+
+    for i, found in enumerate(boxes):
+        x_min, y_min, x_max, y_max = found["box"]
+        label = labels[i] if labels is not None else f"{found['confidence']:.0%}"
+
+        draw.rectangle((x_min, y_min, x_max, y_max), outline="red", width=3)
+
+        # Label sits just above the box (or just below, if the box is
+        # flush with the top edge) on a filled background, so it stays
+        # readable over a busy photo instead of blending into it.
+        text_x, text_y = x_min, max(0, y_min - 14)
+        text_box = draw.textbbox((text_x, text_y), label)
+        draw.rectangle(text_box, fill="red")
+        draw.text((text_x, text_y), label, fill="white")
+
+    return picture
 
 
 if __name__ == "__main__":

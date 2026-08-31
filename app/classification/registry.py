@@ -145,7 +145,7 @@ def _latest_run_name(bucket) -> str:
     latest = max(blobs, key=lambda blob: blob.updated)
 
     # "models/classification/<name>/classifier.keras" -> "<name>"
-    return latest.name.split("/")[1]
+    return latest.name.split("/")[-2]
 
 
 def is_run_complete(run_dir) -> bool:
