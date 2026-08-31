@@ -1,0 +1,11 @@
+FROM python:3.12.14-trixie
+
+WORKDIR /prod
+
+COPY app /prod/app
+COPY requirements-streamlit.txt /prod/requirements-streamlit.txt
+
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r /prod/requirements-streamlit.txt
+
+CMD ["sh", "-c", "streamlit run app/streamlit.py --server.address 0.0.0.0 --server.port ${PORT:-8501}"]
