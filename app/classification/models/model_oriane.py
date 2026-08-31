@@ -105,7 +105,7 @@ def build_augmentation() -> Sequential:
         ColorAugmentation(),
     ]
 
-    return Sequential(layers, name="data_augmentation")
+#     return Sequential(layers, name="data_augmentation")
 
 
 def initialize_model() -> Sequential:
@@ -116,7 +116,7 @@ def initialize_model() -> Sequential:
     # numbers immediately instead of "unbuilt".
     model.add(Input(shape=(*IMG_SIZE, 3)))
 
-    model.add(build_augmentation())
+    # model.add(build_augmentation())
 
     # --- Block 1 ---------------------------------------------------------
     model.add(
@@ -221,7 +221,7 @@ def initialize_model() -> Sequential:
     model.add(
         Dense(
             DENSE_UNITS,
-            activation="relu",
+            activation="SiLu",
             kernel_regularizer=regularizers.l2(L2_REG),
         )
     )

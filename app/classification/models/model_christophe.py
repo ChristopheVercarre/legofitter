@@ -99,7 +99,6 @@ def build_augmentation() -> Sequential:
 
     return Sequential(layers, name="data_augmentation")
 
-
 def initialize_model() -> Sequential:
     """Build (but do not compile) the classifier."""
     model = Sequential(name="lego_classifier")

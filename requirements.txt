@@ -24,7 +24,6 @@ PyYAML==6.0.1
 scikit-learn==1.5.0
 scikit-image
 google-cloud-storage==2.14.0
-tensorflow-metal; sys_platform == 'darwin' and platform_machine == 'arm64'
 # One TensorFlow version everywhere (2.16.1), three markers so every machine
 # gets the right build and NO machine is left without one:
 #   linux + x86_64  -> the [and-cuda] extra, which pulls the CUDA 12.3 / cuDNN
