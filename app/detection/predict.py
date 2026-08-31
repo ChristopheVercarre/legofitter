@@ -24,9 +24,17 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
+from pillow_heif import register_heif_opener
 
 from app.detection.registry import load_detector
 from app.params import DETECTION_CONFIDENCE, DETECTION_CROP_PADDING
+
+# Teach Pillow to open iPhone HEIC photos. One call, at import, and every
+# Image.open() in this process -- here, in the pipeline, in the Streamlit
+# app -- handles .heic like any other format. Without it, an AirDropped
+# demo photo dies with "cannot identify image file". Registering twice is
+# harmless, so nobody has to wonder whether it already happened.
+register_heif_opener()
 
 
 def load_image_for_detection(image) -> Image.Image:

@@ -8,6 +8,14 @@ numpy==1.26.4
 pandas==2.2.2
 Pillow==10.4.0
 opencv-python==4.10.0.84
+# iPhone photos: Safari on iOS converts HEIC to JPEG when uploading, but the
+# same photo AirDropped to a Mac (the demo-day path) arrives as .heic, which
+# Pillow cannot open on its own. This plugin teaches Pillow HEIC; the
+# register_heif_opener() call that switches it on lives in
+# app/detection/predict.py, next to the Image.open() it protects.
+# 0.22.0 is the newest release that accepts Pillow 10.4 -- pillow-heif 1.x
+# requires Pillow>=11.1, so bump the two together or not at all.
+pillow-heif==0.22.0
 matplotlib==3.9.0
 tqdm==4.66.4
 PyYAML==6.0.1
@@ -31,6 +39,7 @@ tensorflow[and-cuda]==2.16.1; sys_platform == 'linux' and platform_machine == 'x
 tensorflow==2.16.1; sys_platform == 'linux' and platform_machine != 'x86_64'
 tensorflow==2.16.1; sys_platform != 'linux'
 
+
 # --- Phase 2: Object Detection (YOLOv5) ---
 ultralytics
 seaborn==0.13.2
@@ -43,3 +52,10 @@ requests==2.32.3
 # reads this file -- a few MB, and it means the test suite works on every
 # machine without a separate install step.
 pytest==8.2.2
+
+
+# --- API ---
+fastapi==0.115.0
+uvicorn==0.30.6
+httpx==0.27.2
+pytest-asyncio==0.24.0
