@@ -154,9 +154,19 @@ AUG_CONTRAST = 0.20
 AUG_FILL_MODE = "nearest"
 
 # --- Objective 1: training (train.py) ---
-LEARNING_RATE = 1e-3            # Adam's default; ReduceLROnPlateau lowers it from here
-EPOCHS = 100                    # upper bound — EarlyStopping normally stops us first
-EARLY_STOPPING_PATIENCE = 30    # epochs without val_loss improvement before stopping
+LEARNING_RATE = 1e-3            # Adam's default; step_decay lowers it from here
+# Upper bound — EarlyStopping normally stops us first. Overridable so a long
+# run is a command-line change:  make train_classification_vm EPOCHS=300
+EPOCHS = _env_int("EPOCHS", 100)
+# step_decay's schedule: LEARNING_RATE * LR_DECAY_FACTOR ** (epoch // LR_DECAY_EVERY).
+# The defaults suit a 100-epoch run. They must be RAISED for a longer one, or
+# the LR collapses to nothing long before the last epoch: at the defaults it is
+# already 8e-6 by epoch 90 and 6e-8 by epoch 180, so a 300-epoch run would
+# spend its last 150 epochs not learning. Both are env-driven for that reason:
+#   make train_classification_vm EPOCHS=300 LR_DECAY_EVERY=60 LR_DECAY_FACTOR=0.5
+LR_DECAY_EVERY = _env_int("LR_DECAY_EVERY", 30)
+LR_DECAY_FACTOR = float(os.getenv("LR_DECAY_FACTOR", 0.2))
+EARLY_STOPPING_PATIENCE = _env_int("EARLY_STOPPING_PATIENCE", 30)
 REDUCE_LR_PATIENCE = 5          # epochs without improvement before halving the LR
 REDUCE_LR_FACTOR = 0.5          # new_lr = old_lr * this
 MIN_LEARNING_RATE = 1e-4        # floor for ReduceLROnPlateau
@@ -239,6 +249,19 @@ YOLO_PATIENCE = 10                      # epochs without improvement before stop
 # classifier, so a loose box that swallows a neighbouring brick classifies badly
 # even when mAP50 looks fine.
 DETECTION_MAP_TARGET = 0.85
+
+# --- Objective 2: prediction (predict.py) ---
+# Minimum confidence for a box to count as a brick. 0.25 is ultralytics'
+# default and a reasonable demo setting: low enough not to miss bricks in a
+# crowded photo, high enough to keep the background out of the inventory.
+DETECTION_CONFIDENCE = float(os.getenv("DETECTION_CONFIDENCE", 0.25))
+# How much to grow each box before cropping it for the classifier, as a
+# fraction of the box. The detector draws tight boxes; the classifier was
+# trained on images where the brick sits inside a little margin, so feeding
+# it an edge-to-edge crop is a small train/serve mismatch. 0.10 puts that
+# margin back. Clamped to the image, so a brick at the edge is never padded
+# out of bounds.
+DETECTION_CROP_PADDING = float(os.getenv("DETECTION_CROP_PADDING", 0.10))
 
 # --- Bonus: Rebrickable ---
 REBRICKABLE_API_KEY = os.getenv("REBRICKABLE_API_KEY", "")

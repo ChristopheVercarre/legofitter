@@ -17,6 +17,7 @@ Run directly:
 """
 
 import sys
+from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -27,12 +28,37 @@ from app.classification.evaluate import load_trained_model
 from app.classification.registry import model_input_size
 
 
-def load_image_for_prediction(image_path: str, img_size) -> tf.Tensor:
-    """Read one image file and preprocess it exactly like dataset.py does.
+def load_image_for_prediction(image, img_size) -> tf.Tensor:
+    """Read one image and preprocess it exactly like dataset.py does.
 
-    `img_size` is required and comes from the model itself (see
-    predict_image below), never from IMG_SIZE: a photo has to be resized to
-    what the model expects, and only the model knows that.
+    `image` is a path (str or Path), the raw bytes of an image file, or an
+    already-decoded image (a PIL image or a numpy array). Three shapes
+    because three callers need them:
+
+      path   -- a notebook spot-checking test_sample/
+      bytes  -- a FastAPI upload, `await file.read()`; writing those to a
+                temp file just to have a path to read back would be pure
+                ceremony, plus a file to clean up in a container
+      PIL    -- Objective 3's pipeline, handing over a crop that
+                detection.predict.crop_boxes() cut out of a photo. That crop
+                only exists in memory, and round-tripping it through a PNG
+                encode just to decode it again would be silly.
+
+    `img_size` is required and comes from the model itself (see predict_image
+    below), never from IMG_SIZE: a photo has to be resized to what the model
+    expects, and only the model knows that.
+
+    Decoding stays on TensorFlow rather than PIL on purpose. dataset.py
+    decodes with tf.io during training, and a classifier is sensitive to the
+    exact pixels it is fed -- swapping decoders at prediction time would
+    introduce a difference between training and serving for no gain. Note
+    that this also means EXIF rotation is ignored, exactly as it was ignored
+    when the model was trained.
+
+    decode_image rather than decode_jpeg: the API will be handed PNGs sooner
+    or later, and decode_jpeg raises on them. expand_animations=False keeps
+    the result 3-D -- without it an animated GIF would decode to 4-D and the
+    resize below would fail.
 
     Deliberately not reusing dataset.load_and_preprocess() directly: that
     function's signature is (file_path, label) because it's built for
@@ -40,17 +66,30 @@ def load_image_for_prediction(image_path: str, img_size) -> tf.Tensor:
     Same three steps either way -- decode, resize, scale to [0, 1] -- just
     without the label plumbing.
     """
-    img = tf.io.read_file(image_path)
-    img = tf.io.decode_jpeg(img, channels=3)
+    if isinstance(image, (bytes, bytearray)):
+        img = tf.io.decode_image(image, channels=3, expand_animations=False)
+    elif isinstance(image, (str, Path)):
+        img = tf.io.decode_image(
+            tf.io.read_file(str(image)), channels=3, expand_animations=False
+        )
+    else:
+        # Already decoded: a PIL image or a numpy array. np.asarray() handles
+        # both, and RGBA is trimmed to RGB so a crop from a PNG still works.
+        img = tf.convert_to_tensor(np.asarray(image.convert("RGB"))
+                                   if hasattr(image, "convert") else image)
+        img = img[..., :3]
+
     img = tf.image.resize(img, tuple(img_size))
     img = tf.cast(img, tf.float32) / 255.0
     return img
 
 
-def predict_image(
-    image_path: str, top_k: int = 3, model: Model = None
-) -> list[tuple[str, float]]:
+def predict_image(image, top_k: int = 3, model: Model = None) -> list[tuple[str, float]]:
     """Classify one image, return its top-k (part_id, confidence) pairs.
+
+    `image` is a path (str or Path) or raw image bytes, so the same function
+    serves a notebook spot-checking test_sample/ and a FastAPI endpoint
+    serving an upload.
 
     confidence is the model's softmax probability for that class -- not a
     calibrated "percent chance correct", but it's what tells a confident
@@ -74,7 +113,7 @@ def predict_image(
     # which is a guess about which run it belongs to.
     # The model carries its own input size, so a 256x256 model works here
     # whatever IMG_SIZE this machine is set to -- nothing to configure.
-    img = load_image_for_prediction(image_path, model_input_size(model))
+    img = load_image_for_prediction(image, model_input_size(model))
 
     class_names = getattr(model, "class_names", None)
     if class_names is None:
