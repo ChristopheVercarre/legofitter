@@ -1,2 +1,4 @@
 fastapi==0.115.0
 uvicorn==0.30.6
+# HEIC uploads from iPhones -- needed once the predict endpoint decodes images
+pillow-heif==0.22.0

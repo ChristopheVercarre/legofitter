@@ -28,6 +28,9 @@ tensorflow-metal; sys_platform == 'darwin' and platform_machine == 'arm64'
 #                      without this line pip installs NO tensorflow at all.
 #   everything else -> plain tensorflow (macOS, Windows); macOS arm64 also
 #                      picks up tensorflow-metal below.
+tensorflow[and-cuda]==2.16.1; sys_platform == 'linux' and platform_machine == 'x86_64'
+tensorflow==2.16.1; sys_platform == 'linux' and platform_machine != 'x86_64'
+tensorflow==2.16.1; sys_platform != 'linux'
 
 
 # --- Phase 2: Object Detection (YOLOv5) ---

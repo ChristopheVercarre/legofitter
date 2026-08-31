@@ -2,6 +2,12 @@ import os
 
 import requests
 import streamlit as st
+from pillow_heif import register_heif_opener
+
+# iPhone photos AirDropped to the Mac arrive as .heic, which Pillow (and so
+# st.image) cannot open on its own. One call at import fixes that for the
+# whole process. Registering twice is harmless.
+register_heif_opener()
 
 
 API_URL = os.getenv("API_URL")
@@ -31,7 +37,7 @@ st.subheader("Identifier une pièce LEGO")
 
 uploaded_file = st.file_uploader(
     "Choisissez une image",
-    type=["jpg", "jpeg", "png"]
+    type=["jpg", "jpeg", "png", "heic", "heif"]
 )
 
 if uploaded_file is not None:
