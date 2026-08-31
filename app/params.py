@@ -122,9 +122,12 @@ BLUR_VARIANCE_THRESHOLD = 6
 
 # Max renders kept per class, as a multiple of that class's photo count.
 # 650/350 = 1.857 is the render:photo ratio Boiński et al. (Sci Data 2023)
-# used for their baseline training set. Set to None to train on the raw
-# ~5:1 distribution instead.
-RENDER_PHOTO_RATIO = 650 / 350
+# used for their baseline training set. Set CAP_RENDERS=false (.env, or per
+# run: make train_classification_vm CAP_RENDERS=false) to skip the cap
+# entirely and train on every render for every class -- the raw ~5:1
+# distribution, i.e. the full photos+renders dataset.
+CAP_RENDERS = _env_flag("CAP_RENDERS", default=True)
+RENDER_PHOTO_RATIO = (650 / 350) if CAP_RENDERS else None
 
 # Stratified split proportions: TEST_SIZE off the full set, then VAL_SIZE off
 # what remains. (0.15, 0.15) gives roughly 72/13/15 — training-heavy, as in
