@@ -41,6 +41,8 @@ from app.params import (
     HISTORY_PATH,
     IMG_SIZE,
     LEARNING_RATE,
+    LR_DECAY_EVERY,
+    LR_DECAY_FACTOR,
     MIN_LEARNING_RATE,
     MODEL_NAME,
     NUM_CLASSES,
@@ -78,16 +80,22 @@ class PhotosOnlyMetric(Callback):
         print(f"    val_photos_accuracy: {accuracy:.4f}{gate}")
 
 def step_decay(epoch: int, lr: float) -> float:
-    """LR = LEARNING_RATE * 0.2^(epoch // 30) -- drop to a fifth every 30 epochs.
+    """LR = LEARNING_RATE * LR_DECAY_FACTOR ** (epoch // LR_DECAY_EVERY).
 
-    epoch is 0-based, so: 1e-3 for epochs 0-29, 2e-4 for 30-59, 4e-5 for 60-89.
+    At the defaults (a fifth every 30 epochs, epoch being 0-based): 1e-3 for
+    epochs 0-29, 2e-4 for 30-59, 4e-5 for 60-89, 8e-6 for 90-119.
+
+    That is tuned for EPOCHS=100 and does NOT scale: the same schedule over 300
+    epochs reaches 6e-8 by epoch 180, where training continues to burn GPU
+    hours while learning nothing. Raise LR_DECAY_EVERY with EPOCHS -- roughly
+    EPOCHS // 5 keeps the shape of the curve you already know.
 
     Recomputed from LEARNING_RATE rather than from `lr` on purpose, so the
     schedule is idempotent. Keras passes the CURRENT rate in as `lr`, and
     deriving the next value from it would compound the decay every epoch
-    instead of every 30.
+    instead of every LR_DECAY_EVERY.
     """
-    return LEARNING_RATE * (0.2 ** (epoch // 30))
+    return LEARNING_RATE * (LR_DECAY_FACTOR ** (epoch // LR_DECAY_EVERY))
 
 
 def finetune_lr(epoch: int, lr: float) -> float:
