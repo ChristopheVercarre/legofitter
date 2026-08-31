@@ -250,6 +250,19 @@ YOLO_PATIENCE = 10                      # epochs without improvement before stop
 # even when mAP50 looks fine.
 DETECTION_MAP_TARGET = 0.85
 
+# --- Objective 2: prediction (predict.py) ---
+# Minimum confidence for a box to count as a brick. 0.25 is ultralytics'
+# default and a reasonable demo setting: low enough not to miss bricks in a
+# crowded photo, high enough to keep the background out of the inventory.
+DETECTION_CONFIDENCE = float(os.getenv("DETECTION_CONFIDENCE", 0.25))
+# How much to grow each box before cropping it for the classifier, as a
+# fraction of the box. The detector draws tight boxes; the classifier was
+# trained on images where the brick sits inside a little margin, so feeding
+# it an edge-to-edge crop is a small train/serve mismatch. 0.10 puts that
+# margin back. Clamped to the image, so a brick at the edge is never padded
+# out of bounds.
+DETECTION_CROP_PADDING = float(os.getenv("DETECTION_CROP_PADDING", 0.10))
+
 # --- Bonus: Rebrickable ---
 REBRICKABLE_API_KEY = os.getenv("REBRICKABLE_API_KEY", "")
 REBRICKABLE_BASE_URL = "https://rebrickable.com/api/v3"

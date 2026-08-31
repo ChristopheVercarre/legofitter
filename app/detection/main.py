@@ -15,9 +15,9 @@ The classification twin of this file is app/classification/main.py.
 
 from app.detection.evaluate import evaluate, summarise
 from app.detection.prepare_data import prepare_data
-from app.detection.registry import load_detector
+from app.detection.predict import predict_boxes
 from app.detection.train import train_model
-from app.params import YOLO_DATA_DIR, YOLO_DATASET_YAML
+from app.params import DETECTION_CONFIDENCE, YOLO_DATA_DIR, YOLO_DATASET_YAML
 
 
 def describe_dataset() -> None:
@@ -50,22 +50,24 @@ def describe_dataset() -> None:
         print(f"\n✅ {totals[2] / totals[0]:.2f} boxes per image on average")
 
 
-def detect(image_path: str, confidence: float = 0.25) -> None:
-    """Run the detector on one image and print what it found.
+def detect(image, confidence: float = DETECTION_CONFIDENCE) -> list[dict]:
+    """Run the detector on one image, print what it found, and return it.
 
-    The Objective 3 building block: each box printed here becomes a crop that
-    the Objective 1 classifier turns into a part ID.
+    A thin wrapper over predict.predict_boxes() -- the detection itself lives
+    there, so the API and this file can never drift apart. This one adds the
+    printing a notebook or a terminal wants, and hands the boxes back anyway
+    so they can be fed straight to crop_boxes().
     """
-    detector = load_detector()
-    result = detector.predict(str(image_path), conf=confidence, verbose=False)[0]
+    found = predict_boxes(image, confidence=confidence)
 
-    print(f"\n{len(result.boxes)} brick(s) detected in {image_path}:")
-    for rank, box in enumerate(result.boxes, start=1):
-        x_min, y_min, x_max, y_max = (round(float(v)) for v in box.xyxy[0])
+    print(f"\n{len(found)} brick(s) detected in {image}:")
+    for rank, brick in enumerate(found, start=1):
+        x_min, y_min, x_max, y_max = brick["box"]
         print(
-            f"  {rank:>3}. confidence {float(box.conf[0]):.2%}   "
+            f"  {rank:>3}. confidence {brick['confidence']:.2%}   "
             f"box ({x_min}, {y_min}) -> ({x_max}, {y_max})"
         )
+    return found
 
 
 if __name__ == "__main__":
