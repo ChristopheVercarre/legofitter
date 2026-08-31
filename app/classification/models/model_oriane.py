@@ -43,6 +43,7 @@ from keras.layers import (
 )
 from keras.optimizers import Adam
 
+from app.classification.models.layers import ColorAugmentation
 from app.params import (
     AUG_BRIGHTNESS,
     AUG_CONTRAST,
@@ -73,30 +74,36 @@ def enable_mixed_precision() -> None:
     print("✅ Mixed precision enabled (float16 compute, float32 weights)")
 
 
-# def build_augmentation() -> Sequential:
-#     """The random image transforms applied to training images only.
+def build_augmentation() -> Sequential:
+    """The random image transforms applied to training images only.
 
-#     Why this matters here: after cap_renders(), roughly two thirds of our
-#     training images are synthetic renders — clean, evenly lit, centred. Real
-#     photos are none of those things. Augmentation is what stops the model
-#     learning "render-ness" instead of brick shape.
+    Why this matters here: after cap_renders(), roughly two thirds of our
+    training images are synthetic renders — clean, evenly lit, centred. Real
+    photos are none of those things. Augmentation is what stops the model
+    learning "render-ness" instead of brick shape.
 
-#     No horizontal flip: LEGO has mirrored part pairs (left/right wedges)
-#     that are DIFFERENT part IDs, so flipping could teach the model to
-#     confuse two classes.
-#     """
-#     layers = [
-#         # Geometric jitter — a brick can be photographed at any angle, any
-#         # distance, anywhere in frame. fill_mode decides what goes in the
-#         # corners these transforms leave empty; see AUG_FILL_MODE in params.py.
-#         RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
-#         RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
-#         RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
-#                           fill_mode=AUG_FILL_MODE),
-#         # Photometric jitter — renders have studio lighting, phone photos do not.
-#         RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
-#         RandomContrast(AUG_CONTRAST),
-#     ]
+    No horizontal flip: LEGO has mirrored part pairs (left/right wedges)
+    that are DIFFERENT part IDs, so flipping could teach the model to
+    confuse two classes.
+    """
+    layers = [
+        # Geometric jitter — a brick can be photographed at any angle, any
+        # distance, anywhere in frame. fill_mode decides what goes in the
+        # corners these transforms leave empty; see AUG_FILL_MODE in params.py.
+        RandomRotation(AUG_ROTATION, fill_mode=AUG_FILL_MODE),
+        RandomZoom(AUG_ZOOM, fill_mode=AUG_FILL_MODE),
+        RandomTranslation(AUG_TRANSLATION, AUG_TRANSLATION,
+                          fill_mode=AUG_FILL_MODE),
+        # Photometric jitter — renders have studio lighting, phone photos do not.
+        RandomBrightness(AUG_BRIGHTNESS, value_range=(0.0, 1.0)),
+        RandomContrast(AUG_CONTRAST),
+        # Saturation and hue jitter (Jules's layer, shared from layers.py).
+        # RandomBrightness/RandomContrast only move lightness; this is what
+        # varies COLOUR. The same part ID exists in red, blue, grey and more,
+        # and the renders are far more uniformly coloured than the photos, so
+        # jittering hue is what teaches "shape matters, colour does not".
+        ColorAugmentation(),
+    ]
 
 #     return Sequential(layers, name="data_augmentation")
 
@@ -112,39 +119,95 @@ def initialize_model() -> Sequential:
     # model.add(build_augmentation())
 
     # --- Block 1 ---------------------------------------------------------
-    model.add(Conv2D(32, (3, 3), padding="same", use_bias=False)))
+    model.add(
+        Conv2D(
+            32,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
-    model.add(Conv2D(32, (3, 3), padding="same", use_bias=False)))
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            32,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 2 ---------------------------------------------------------
-    model.add(Conv2D(64, (3, 3), padding="same", use_bias=False))
+    model.add(
+        Conv2D(
+            64,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
-    model.add(Conv2D(64, (3, 3), padding="same", use_bias=False))
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            64,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 3 ---------------------------------------------------------
-    model.add(Conv2D(128, (3, 3), padding="same", use_bias=False))
+    model.add(
+        Conv2D(
+            128,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
-    model.add(Conv2D(128, (3, 3), padding="same", use_bias=False))
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            128,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Block 4 ---------------------------------------------------------
-    model.add(Conv2D(256, (3, 3), padding="same", use_bias=False))
+    model.add(
+        Conv2D(
+            256,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
-    model.add(Conv2D(256, (3, 3), padding="same", use_bias=False))
+    model.add(Activation("relu"))
+    model.add(
+        Conv2D(
+            256,
+            (3, 3),
+            padding="same",
+            kernel_regularizer=regularizers.l2(L2_REG),
+        )
+    )
     model.add(BatchNormalization())
-    model.add(Activation("SiLu"))
+    model.add(Activation("relu"))
     model.add(MaxPooling2D((2, 2)))
 
     # --- Head --------------------------------------------------------------

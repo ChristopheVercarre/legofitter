@@ -25,6 +25,23 @@ def _env_flag(name: str, default: bool = False) -> bool:
     return value.strip().strip("\"'").lower() in ("1", "true", "yes", "on")
 
 
+def _env_int(name: str, default: int) -> int:
+    """Read a whole-number setting from the environment.
+
+    Wrapped rather than inlined as int(os.getenv(...)) so a typo fails with a
+    sentence instead of a bare ValueError raised while params.py is still
+    importing -- which surfaces as every command on the machine breaking at
+    once, with a traceback that never mentions the variable at fault.
+    """
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value.strip().strip("\"'"))
+    except ValueError:
+        raise SystemExit(f"❌ {name}={value!r} is not a whole number")
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = PROJECT_ROOT / os.getenv("DATA_DIR", "data")
@@ -56,6 +73,11 @@ CLASSIFICATION_DATA_DIR = PROJECT_ROOT / os.getenv(
 # Where dataset.ensure_local_data() fetches the images from when a machine
 # (a fresh VM, a teammate's laptop) has no local copy. Kept here rather than
 # in dataset.py so every path/bucket the project touches lives in one file.
+# Where run folders live in the bucket, one prefix per objective. GCS has no
+# real directories -- these are just name prefixes -- so nothing creates them.
+GCS_CLASSIFICATION_MODELS = "models/classification"
+GCS_DETECTION_MODELS = "models/detection"
+
 GCS_CLASSIFICATION_DATA = os.getenv(
     "GCS_CLASSIFICATION_DATA",
     "gs://legofitter-datasets/lego-dataset-classification",
@@ -66,7 +88,12 @@ GCS_CLASSIFICATION_DATA = os.getenv(
 # location. registry.save_model() copies it into a named run folder afterwards,
 # and registry.load_model() copies a run back over it. Keeping it in a folder
 # means models/ holds nothing but folders -- one per run, plus this one.
-CURRENT_RUN_DIR = MODELS_DIR / "current"
+# One folder per objective under models/, so a classifier run and a detector
+# run can never be mistaken for each other -- and so "what runs do we have?"
+# has an answer per objective rather than one mixed list.
+CLASSIFICATION_MODELS_DIR = MODELS_DIR / "classification"
+
+CURRENT_RUN_DIR = CLASSIFICATION_MODELS_DIR / "current"
 CLASSIFICATION_MODEL_PATH = CURRENT_RUN_DIR / "classifier.keras"
 CLASSIFICATION_ACCURACY_TARGET = 0.70  # gate before starting Objective 2
 
@@ -164,7 +191,54 @@ HISTORY_PATH = CURRENT_RUN_DIR / "history.json"
 DETECTION_DATA_DIR = PROJECT_ROOT / os.getenv(
     "DETECTION_DATA_DIR", "data/lego-tagged-object_detection"
 )
-DETECTION_MODEL_PATH = MODELS_DIR / "detector.pt"
+DETECTION_MODELS_DIR = MODELS_DIR / "detection"
+
+# The detector's working state, mirroring models/classification/current/:
+# whatever run was trained or loaded last. A detection run is three files that
+# only mean anything together -- weights, the class map they were trained
+# against, and the curves -- exactly like a classification run.
+DETECTION_CURRENT_DIR = DETECTION_MODELS_DIR / "current"
+DETECTION_MODEL_PATH = DETECTION_CURRENT_DIR / "best.pt"
+DETECTION_DATA_YAML_PATH = DETECTION_CURRENT_DIR / "data.yaml"
+DETECTION_RESULTS_PATH = DETECTION_CURRENT_DIR / "results.csv"
+
+# The annotations call the class both "lego" and "legod" (a typo in the source
+# dataset). Both mean the same thing, and YOLO trains on ONE class here: we
+# only need to know WHERE a brick is; which brick it is, is Objective 1's job.
+DETECTION_SOURCE_NAMES = {"lego", "legod"}
+DETECTION_CLASS_NAME = "lego"
+DETECTION_CLASS_ID = 0
+
+# Extensions in the detection dataset -- the classification set is .jpg photos
+# and .jpeg renders, but the tagged detection set also contains .png.
+DETECTION_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+
+# prepare_data.py rewrites the VOC dataset into YOLO's own layout here.
+# Kept out of DETECTION_DATA_DIR: that folder is the input, and generated
+# files do not belong in it.
+YOLO_DATA_DIR = DATA_DIR / "lego-yolo-dataset"
+YOLO_DATASET_YAML = YOLO_DATA_DIR / "data.yaml"
+
+# --- Objective 2: YOLO training ---
+# The three below are overridable per run, e.g.
+#   make train_detection_vm YOLO_BASE_MODEL=yolo26s.pt YOLO_EPOCHS=100 YOLO_BATCH_SIZE=16
+# YOLO_IMG_SIZE and YOLO_PATIENCE are deliberately not: 640 suits this dataset
+# (median box ~91px at 640, only 4% COCO-"small"), and patience should track
+# epochs rather than being tuned on its own.
+YOLO_BASE_MODEL = os.getenv("YOLO_BASE_MODEL", "yolo26n.pt")   # ultralytics downloads it
+YOLO_EPOCHS = _env_int("YOLO_EPOCHS", 50)
+YOLO_IMG_SIZE = 640                     # YOLO's own input size, unrelated to IMG_SIZE
+YOLO_BATCH_SIZE = _env_int("YOLO_BATCH_SIZE", 8)
+YOLO_PATIENCE = 10                      # epochs without improvement before stopping
+
+# The gate for Objective 2, the detection twin of CLASSIFICATION_ACCURACY_TARGET.
+# Higher than the classifier's 0.70 on purpose: this is a ONE-class problem --
+# "is there a brick here" -- not a 50-way choice, so it should be a great deal
+# easier. mAP50 is the headline (a box counts as correct at 50% overlap), but
+# watch mAP50-95 too: Objective 3 crops each detected box and hands it to the
+# classifier, so a loose box that swallows a neighbouring brick classifies badly
+# even when mAP50 looks fine.
+DETECTION_MAP_TARGET = 0.85
 
 # --- Bonus: Rebrickable ---
 REBRICKABLE_API_KEY = os.getenv("REBRICKABLE_API_KEY", "")

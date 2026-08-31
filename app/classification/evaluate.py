@@ -36,7 +36,7 @@ def load_trained_model():
     There are two places a trained model can live, and they answer
     different questions:
 
-      - CLASSIFICATION_MODEL_PATH (models/current/classifier.keras) is the checkpoint
+      - CLASSIFICATION_MODEL_PATH (models/classification/current/classifier.keras) is the checkpoint
         THIS machine's train.py just wrote via ModelCheckpoint. Loading it is
         free (no network call) and it's the freshest thing this machine has
         trained.
