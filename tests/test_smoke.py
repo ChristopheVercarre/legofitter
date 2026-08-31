@@ -100,6 +100,11 @@ EXPECTED_API = {
         "build_run_name",
         "train_model",
     ],
+    "app/detection/predict.py": [
+        "load_image_for_detection",
+        "predict_boxes",
+        "crop_boxes",
+    ],
     "app/detection/evaluate.py": [
         "evaluate",
         "summarise",
