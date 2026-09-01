@@ -1,0 +1,59 @@
+# LegoFitter dependencies, grouped by the phase that needs them.
+# Install everything now with `pip install -r requirements.txt`, or install
+# a phase's block as you reach it — nothing here is required before Phase 1.
+
+# --- Core (all phases) ---
+python-dotenv==1.0.1
+numpy==1.26.4
+pandas==2.2.2
+Pillow==10.4.0
+opencv-python==4.10.0.84
+# iPhone photos: Safari on iOS converts HEIC to JPEG when uploading, but the
+# same photo AirDropped to a Mac (the demo-day path) arrives as .heic, which
+# Pillow cannot open on its own. This plugin teaches Pillow HEIC; the
+# register_heif_opener() call that switches it on lives in
+# app/detection/predict.py, next to the Image.open() it protects.
+# 0.22.0 is the newest release that accepts Pillow 10.4 -- pillow-heif 1.x
+# requires Pillow>=11.1, so bump the two together or not at all.
+pillow-heif==0.22.0
+matplotlib==3.9.0
+tqdm==4.66.4
+PyYAML==6.0.1
+
+# --- Phase 1: Classification (custom CNN, tf.keras) ---
+scikit-learn==1.5.0
+scikit-image
+google-cloud-storage==2.14.0
+# One TensorFlow version everywhere (2.16.1), three markers so every machine
+# gets the right build and NO machine is left without one:
+#   linux + x86_64  -> the [and-cuda] extra, which pulls the CUDA 12.3 / cuDNN
+#                      wheels the VM's T4 needs. Plain `tensorflow` on Linux
+#                      imports fine but silently falls back to CPU -- 'Cannot
+#                      dlopen some GPU libraries' is the only warning you get.
+#   linux + arm64   -> plain tensorflow. This is the Docker build on an Apple
+#                      Silicon Mac; there are no CUDA wheels for arm64, and
+#                      without this line pip installs NO tensorflow at all.
+#   everything else -> plain tensorflow (macOS, Windows); macOS arm64 also
+#                      picks up tensorflow-metal below.
+tensorflow==2.16.1
+
+
+# --- Phase 2: Object Detection (YOLOv5) ---
+ultralytics
+seaborn==0.13.2
+
+# --- Bonus: Rebrickable API ---
+requests==2.32.3
+
+# --- Development ---
+# Needed for `make test`. Installed by `pip install -e .` too, since setup.py
+# reads this file -- a few MB, and it means the test suite works on every
+# machine without a separate install step.
+pytest==8.2.2
+
+
+# --- API ---
+fastapi==0.115.0
+uvicorn==0.30.6
+httpx==0.27.2
+pytest-asyncio==0.24.0
