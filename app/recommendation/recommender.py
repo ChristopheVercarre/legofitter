@@ -92,11 +92,33 @@ def recommend_sets(
             candidate_counts[set_num] += 1
             candidate_data[set_num] = lego_set
 
-    # Sets apparaissant avec le plus de pièces détectées
-    best_candidate_ids = [
+    # On privilégie dès la sélection les petits sets entre 50 et 250 pièces
+    # Paramètres de recommandation
+    TARGET_SET_SIZE = 100
+    MIN_SET_SIZE = 50
+    MAX_SET_SIZE = 250
+    MIN_COMPATIBILITY = 0.10
+
+    size_candidate_ids = [
         set_num
-        for set_num, _ in candidate_counts.most_common(max_candidates)
+        for set_num, count in candidate_counts.most_common()
+        if (
+            candidate_data[set_num].get("num_parts") is not None
+            and MIN_SET_SIZE
+            <= candidate_data[set_num]["num_parts"]
+            <= MAX_SET_SIZE
+        )
     ]
+
+    # Si on trouve des sets dans la bonne taille, on ne considère qu'eux.
+    # Sinon on garde un fallback pour toujours proposer quelque chose.
+    if size_candidate_ids:
+        best_candidate_ids = size_candidate_ids[:max_candidates]
+    else:
+        best_candidate_ids = [
+            set_num
+            for set_num, _ in candidate_counts.most_common(max_candidates)
+        ]
 
     recommendations = []
 
@@ -124,16 +146,47 @@ def recommend_sets(
             }
         )
 
-    # Les sets réellement constructibles en premier,
-    # puis les meilleurs taux de compatibilité
+
+    # 1. Garder en priorité les sets entre 250 et 750 pièces
+    size_filtered = [
+        recommendation
+        for recommendation in recommendations
+        if (
+            recommendation["num_parts"] is not None
+            and MIN_SET_SIZE
+            <= recommendation["num_parts"]
+            <= MAX_SET_SIZE
+        )
+    ]
+
+    if size_filtered:
+        recommendations = size_filtered
+
+
+    # 2. Privilégier les sets avec au moins 10 % de compatibilité
+    good_compatibility = [
+        recommendation
+        for recommendation in recommendations
+        if recommendation["inventory_coverage"] >= MIN_COMPATIBILITY
+    ]
+
+    # On applique le seuil uniquement s'il reste au moins un candidat
+    if good_compatibility:
+        recommendations = good_compatibility
+
+
     recommendations.sort(
         key=lambda x: (
             x["buildable"],
+            x["inventory_coverage"] >= MIN_COMPATIBILITY,
             x["inventory_coverage"],
             x["compatibility"],
+            -abs(
+                (x["num_parts"] or TARGET_SET_SIZE)
+                - TARGET_SET_SIZE
+            ),
             x["candidate_matches"],
         ),
         reverse=True,
     )
-
     return recommendations
