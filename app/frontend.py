@@ -16,6 +16,14 @@ register_heif_opener()
 
 API_URL = os.getenv("API_URL")
 
+# Must be the FIRST Streamlit command executed -- page title (browser tab)
+# and favicon, the icon cut from the logo's brick mark.
+st.set_page_config(
+    page_title="LegoFitter",
+    page_icon=str(Path(__file__).parent / "assets" / "favicon.png"),
+    layout="centered",
+)
+
 
 @st.cache_data(show_spinner=False)
 def load_part_image(url: str) -> bytes | None:
