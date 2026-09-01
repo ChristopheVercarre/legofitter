@@ -11,6 +11,7 @@ import os
 
 load_dotenv()
 
+
 def _env_flag(name: str, default: bool = False) -> bool:
     """Read a true/false switch from the environment.
 
@@ -52,7 +53,7 @@ MODELS_DIR = PROJECT_ROOT / os.getenv("MODELS_DIR", "models")
 # override it:  make run_vm IMG_SIZE=256
 _img_px = int(os.getenv("IMG_SIZE", 128))
 IMG_SIZE = (_img_px, _img_px)
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 RANDOM_STATE = 42  # seed for every split / subsample, so runs are comparable
 
@@ -238,9 +239,11 @@ YOLO_DATASET_YAML = YOLO_DATA_DIR / "data.yaml"
 # YOLO_IMG_SIZE and YOLO_PATIENCE are deliberately not: 640 suits this dataset
 # (median box ~91px at 640, only 4% COCO-"small"), and patience should track
 # epochs rather than being tuned on its own.
-YOLO_BASE_MODEL = os.getenv("YOLO_BASE_MODEL", "yolo26n.pt")   # ultralytics downloads it
+# ultralytics downloads it
+YOLO_BASE_MODEL = os.getenv("YOLO_BASE_MODEL", "yolo26n.pt")
 YOLO_EPOCHS = _env_int("YOLO_EPOCHS", 50)
-YOLO_IMG_SIZE = 640                     # YOLO's own input size, unrelated to IMG_SIZE
+# YOLO's own input size, unrelated to IMG_SIZE
+YOLO_IMG_SIZE = 640
 YOLO_BATCH_SIZE = _env_int("YOLO_BATCH_SIZE", 8)
 YOLO_PATIENCE = 10                      # epochs without improvement before stopping
 
