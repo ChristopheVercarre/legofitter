@@ -23,7 +23,7 @@ import sys
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pillow_heif import register_heif_opener
 
 from app.detection.registry import load_detector
@@ -170,27 +170,39 @@ def draw_boxes(
     its own detection confidence instead, which is enough to sanity-check
     the detector alone (README Objective 3 Step 2).
 
-    Uses PIL's default bitmap font on purpose: no font file to ship or look
-    up across machines. Small and not pretty, but always available. Pass
-    your own font by wrapping this function if you need bigger labels for
-    a report or a slide.
+    Uses PIL's default font on purpose: no font file to ship or look up
+    across machines. load_default(size=...) (Pillow >= 10.1) renders it at
+    any size, so labels and line widths SCALE WITH THE PHOTO -- a 4000px
+    iPhone shot gets ~100px labels a room can read, a 500px render gets
+    small ones, and both stay proportionate.
     """
     picture = load_image_for_detection(image).copy()
     draw = ImageDraw.Draw(picture)
+
+    shortest = min(picture.size)
+    font_size = max(14, shortest // 30)
+    line_width = max(3, shortest // 400)
+    pad = max(2, font_size // 5)
+    font = ImageFont.load_default(size=font_size)
 
     for i, found in enumerate(boxes):
         x_min, y_min, x_max, y_max = found["box"]
         label = labels[i] if labels is not None else f"{found['confidence']:.0%}"
 
-        draw.rectangle((x_min, y_min, x_max, y_max), outline="red", width=3)
+        draw.rectangle((x_min, y_min, x_max, y_max), outline="red", width=line_width)
 
-        # Label sits just above the box (or just below, if the box is
+        # Label sits just above the box (or just below it, if the box is
         # flush with the top edge) on a filled background, so it stays
         # readable over a busy photo instead of blending into it.
-        text_x, text_y = x_min, max(0, y_min - 14)
-        text_box = draw.textbbox((text_x, text_y), label)
-        draw.rectangle(text_box, fill="red")
-        draw.text((text_x, text_y), label, fill="white")
+        text_width = draw.textlength(label, font=font)
+        text_y = y_min - font_size - 2 * pad - line_width
+        if text_y < 0:
+            text_y = y_max + line_width
+        draw.rectangle(
+            (x_min, text_y, x_min + text_width + 2 * pad, text_y + font_size + 2 * pad),
+            fill="red",
+        )
+        draw.text((x_min + pad, text_y + pad), label, fill="white", font=font)
 
     return picture
 
