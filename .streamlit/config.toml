@@ -1,0 +1,5 @@
+# Pin the light theme: the logo in app/assets/logo.png is transparent with
+# black lettering, and Streamlit otherwise follows the visitor's OS theme --
+# a dark-mode phone or projector laptop would make the title unreadable.
+[theme]
+base = "light"

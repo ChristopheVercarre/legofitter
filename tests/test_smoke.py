@@ -125,6 +125,21 @@ EXPECTED_API = {
         "save_model",
         "load_model",
     ],
+    "app/api/fast.py": [
+        "root",
+        "ping",
+        "part_info",
+        "predict",
+    ],
+    "app/api/rebrickable.py": [
+        "get_part",
+        "get_set_inventory",
+        "get_candidate_sets_for_part",
+    ],
+    "app/recommendation/recommender.py": [
+        "score_inventory_match",
+        "recommend_sets",
+    ],
     "run_training.py": ["stage"],
 }
 
@@ -156,6 +171,16 @@ EXPECTED_PARAMS = [
     "VAL_SIZE",
     "EPOCHS",
     "USE_MIXED_PRECISION",
+    "REBRICKABLE_API_KEY",
+    "REBRICKABLE_BASE_URL",
+    "REBRICKABLE_MAX_COLORS_PER_PART",
+    "CANDIDATE_SETS_PER_PART",
+    "MAX_CANDIDATE_SETS",
+    "TARGET_SET_SIZE",
+    "MIN_SET_SIZE",
+    "MAX_SET_SIZE",
+    "MIN_INVENTORY_COVERAGE",
+    "ANNOTATION_COLOR",
 ]
 
 MODULE_PATHS = sorted(EXPECTED_API)

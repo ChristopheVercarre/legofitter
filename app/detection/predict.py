@@ -27,7 +27,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pillow_heif import register_heif_opener
 
 from app.detection.registry import load_detector
-from app.params import DETECTION_CONFIDENCE, DETECTION_CROP_PADDING
+from app.params import DETECTION_CONFIDENCE, DETECTION_CROP_PADDING, ANNOTATION_COLOR
 
 # Teach Pillow to open iPhone HEIC photos. One call, at import, and every
 # Image.open() in this process -- here, in the pipeline, in the Streamlit
@@ -189,7 +189,7 @@ def draw_boxes(
         x_min, y_min, x_max, y_max = found["box"]
         label = labels[i] if labels is not None else f"{found['confidence']:.0%}"
 
-        draw.rectangle((x_min, y_min, x_max, y_max), outline="red", width=line_width)
+        draw.rectangle((x_min, y_min, x_max, y_max), outline=ANNOTATION_COLOR, width=line_width)
 
         # Label sits just above the box (or just below it, if the box is
         # flush with the top edge) on a filled background, so it stays
@@ -200,9 +200,9 @@ def draw_boxes(
             text_y = y_max + line_width
         draw.rectangle(
             (x_min, text_y, x_min + text_width + 2 * pad, text_y + font_size + 2 * pad),
-            fill="red",
+            fill=ANNOTATION_COLOR,
         )
-        draw.text((x_min + pad, text_y + pad), label, fill="white", font=font)
+        draw.text((x_min + pad, text_y + pad), label, fill="black", font=font)
 
     return picture
 

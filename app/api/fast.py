@@ -5,10 +5,20 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from app.api.rebrickable import get_part
+from app.classification.evaluate import load_trained_model
+from app.detection.registry import load_detector
 from app.pipeline.inference import build_detailed_predictions
 from app.recommendation.recommender import recommend_sets
 
 app = FastAPI(title="LegoFitter API", version="0.1.0")
+
+# Load both models ONCE, at service startup. build_detailed_predictions()
+# would happily load them itself, but it does so PER CALL -- seconds of disk
+# (or bucket) I/O added to every /predict. One slow cold start here buys
+# fast requests forever after.
+detector = load_detector()
+classifier = load_trained_model()
+print("✅ API ready: detector + classifier loaded")
 
 
 @app.get("/")
@@ -20,16 +30,19 @@ def root():
 def ping():
     return {"message": "pong"}
 
+
 @app.get("/parts/{part_id}")
 def part_info(part_id: str):
     return get_part(part_id)
 
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
 
-    # Vérification du format
+    # Extension check -- the pipeline decodes with PIL, which (with
+    # pillow-heif registered in app/detection/predict.py) handles exactly
+    # these. The temp file below keeps the suffix, so HEIC decodes too.
     allowed_extensions = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
-
     extension = Path(file.filename or "").suffix.lower()
 
     if extension not in allowed_extensions:
@@ -38,7 +51,6 @@ async def predict(file: UploadFile = File(...)):
             detail="Unsupported image format. Use JPG, JPEG, PNG, HEIC or HEIF.",
         )
 
-    # FastAPI lit simplement le fichier en bytes
     image_bytes = await file.read()
 
     if not image_bytes:
@@ -46,10 +58,6 @@ async def predict(file: UploadFile = File(...)):
             status_code=400,
             detail="The uploaded image is empty.",
         )
-
-    # Plus tard :
-    # result = predict_pipeline(image_bytes)
-    # return result
 
     temp_path = None
 
@@ -61,18 +69,47 @@ async def predict(file: UploadFile = File(...)):
             temp_file.write(image_bytes)
             temp_path = Path(temp_file.name)
 
-        detailed = build_detailed_predictions(temp_path)
+        detailed = build_detailed_predictions(
+            temp_path,
+            detector=detector,
+            classifier=classifier,
+        )
 
         inventory = Counter(
             detection["predicted_class"]
             for detection in detailed["detections"]
         )
 
-        recommendations = recommend_sets(
-        dict(inventory),
-        candidate_sets_per_part=10,
-        max_candidates=5,
-    )
+        # Human-readable inventory: nobody in an audience knows what part
+        # ID "3001" is, so attach each part's name and photo from
+        # Rebrickable. Same rule as recommendations below: a Rebrickable
+        # failure (or missing key) must never take down the detections --
+        # this degrades to bare part IDs, and the frontend knows to cope.
+        inventory_details = []
+        for part_id, count in inventory.most_common():
+            entry = {
+                "part_id": part_id,
+                "count": count,
+                "name": None,
+                "img_url": None,
+            }
+            try:
+                part = get_part(part_id)
+                entry["name"] = part.get("name")
+                entry["img_url"] = part.get("part_img_url")
+            except Exception as error:
+                print(f"⚠️ Part lookup skipped for {part_id}: {error}")
+            inventory_details.append(entry)
+
+        # Recommendations are the bonus, not the product. A missing API key,
+        # a Rebrickable rate limit or a network blip must never take down
+        # the detections we already computed -- degrade to "no
+        # recommendation" instead of a 500.
+        try:
+            recommendations = recommend_sets(dict(inventory))
+        except Exception as error:
+            print(f"⚠️ Set recommendation skipped: {error}")
+            recommendations = []
 
         detections = [
             {
@@ -92,6 +129,7 @@ async def predict(file: UploadFile = File(...)):
             "status": "success",
             "filename": file.filename,
             "inventory": dict(inventory),
+            "inventory_details": inventory_details,
             "total_bricks": sum(inventory.values()),
             "detections": detections,
             "recommended_set": recommendations[0] if recommendations else None,

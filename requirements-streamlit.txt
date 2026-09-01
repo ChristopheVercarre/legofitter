@@ -1,3 +1,6 @@
+# Slim per-container pins. Keep versions in sync with requirements.txt
+# (and requirements-cloud.txt) -- same versions everywhere, smaller set here.
 streamlit==1.56.0
 requests==2.32.3
+Pillow==10.4.0
 pillow-heif==0.22.0

@@ -1,3 +1,5 @@
+# Slim per-container pins. Keep versions in sync with requirements.txt
+# (and requirements-cloud.txt) -- same versions everywhere, smaller set here.
 fastapi==0.115.0
 uvicorn==0.30.6
 # HEIC uploads from iPhones -- needed once the predict endpoint decodes images
