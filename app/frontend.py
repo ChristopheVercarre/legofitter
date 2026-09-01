@@ -136,6 +136,42 @@ def brick_rain_html() -> str:
 
 
 
+@st.cache_data(show_spinner=False)
+def side_mascots_html() -> str:
+    """The two Le Wagon minifig coders, parked in the empty side gutters.
+
+    position:fixed pins them to the viewport (guy left, girl right,
+    vertically centred) outside Streamlit's centred column; below 1250px
+    of window width there IS no gutter, so a media query hides them
+    before they can overlap the content. pointer-events:none keeps them
+    purely decorative. Cached: the data URIs never change, no point
+    re-encoding two PNGs on every rerun.
+    """
+    import base64
+
+    assets = Path(__file__).parent / "assets"
+    uris = {}
+    for name in ("coder_guy", "coder_girl"):
+        data = (assets / f"{name}.png").read_bytes()
+        uris[name] = "data:image/png;base64," + base64.b64encode(data).decode()
+
+    return (
+        "<style>"
+        ".side-mascot {"
+        "  position: fixed; z-index: 1;"
+        "  width: min(19vw, 320px);"
+        "  pointer-events: none;"
+        "}"
+        ".side-mascot.left  { left: 1.5vw;  top: 45%; transform: translateY(-50%); }"
+        ".side-mascot.right { right: 1.5vw; top: 55%; transform: translateY(-50%); }"
+        "@media (max-width: 1250px) { .side-mascot { display: none; } }"
+        "</style>"
+        + '<img class="side-mascot left" src="%s">' % uris["coder_guy"]
+        + '<img class="side-mascot right" src="%s">' % uris["coder_girl"]
+    )
+
+
+
 # ============================================================
 # HEADER
 # ============================================================
@@ -145,6 +181,8 @@ def brick_rain_html() -> str:
 # theme "FITTER" would vanish. Resolved from this file, not the CWD, so
 # it works from the repo root, the container and anywhere else.
 st.image(str(Path(__file__).parent / "assets" / "logo.png"), width=520)
+
+st.markdown(side_mascots_html(), unsafe_allow_html=True)
 
 st.write("Test de connexion à l'API LegoFitter")
 
