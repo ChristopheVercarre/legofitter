@@ -180,7 +180,12 @@ def side_mascots_html() -> str:
 # why .streamlit/config.toml pins the light theme -- on Streamlit's dark
 # theme "FITTER" would vanish. Resolved from this file, not the CWD, so
 # it works from the repo root, the container and anywhere else.
-st.image(str(Path(__file__).parent / "assets" / "logo.png"), width=520)
+# st.image left-aligns; a wide middle column centres it.
+_, logo_column, _ = st.columns([1, 4, 1])
+logo_column.image(
+    str(Path(__file__).parent / "assets" / "logo.png"),
+    use_container_width=True,
+)
 
 st.markdown(side_mascots_html(), unsafe_allow_html=True)
 
@@ -261,7 +266,6 @@ if uploaded_file is not None:
                 st.session_state["analysis_image"] = uploaded_file.getvalue()
 
                 # Fresh analysis: reset the validation state
-                st.session_state.pop("rain_done", None)
                 for key in list(st.session_state):
                     if key.startswith("brick_ok_"):
                         del st.session_state[key]
@@ -378,7 +382,7 @@ if "analysis" in st.session_state:
     st.image(
         annotated_image,
         caption="Détection YOLO + classification CNN",
-        width=600,
+        use_container_width=True,
     )
 
     # ------------------------------------------------
@@ -392,55 +396,67 @@ if "analysis" in st.session_state:
     if details:
 
         st.caption(
-            "Cochez chaque brique correctement identifiée."
+            "Cochez chaque brique correctement identifiée, "
+            "puis validez."
         )
 
-        columns = st.columns(4)
+        # A form batches the checkboxes: clicking one changes NOTHING
+        # server-side until the submit button -- no rerun, no spinner,
+        # no websocket flood (unbatched, 2-3 quick clicks could drop
+        # the Cloud Run session and lose the analysis entirely).
+        with st.form("brick_validation", border=False):
 
-        for i, part in enumerate(details):
+            header_cols = st.columns([1, 1, 6])
+            header_cols[0].markdown("**Correct**")
 
-            with columns[i % 4]:
+            for part in details:
 
-                image_bytes = (
-                    load_part_image(part["img_url"])
-                    if part.get("img_url")
-                    else None
-                )
+                row = st.columns([1, 1, 6], vertical_alignment="center")
 
-                if image_bytes:
-                    st.image(image_bytes, width=150)
+                with row[0]:
+                    st.checkbox(
+                        part["part_id"],
+                        key=f"brick_ok_{part['part_id']}",
+                        label_visibility="collapsed",
+                    )
 
-                st.markdown(
-                    f"**{part['count']} ×** "
-                    f"{part.get('name') or part['part_id']}"
-                )
+                with row[1]:
+                    image_bytes = (
+                        load_part_image(part["img_url"])
+                        if part.get("img_url")
+                        else None
+                    )
+                    if image_bytes:
+                        st.image(image_bytes, width=72)
 
-                st.caption(f"Réf. {part['part_id']}")
+                with row[2]:
+                    # The part ID first and big: it is what the audience
+                    # just saw on the boxes in the photo. The catalog
+                    # name is the small print.
+                    st.markdown(
+                        f"**{part['part_id']}** — {part['count']} ×"
+                    )
+                    st.caption(part.get("name") or "")
 
-                st.checkbox(
-                    "Correct",
-                    key=f"brick_ok_{part['part_id']}",
-                )
+            submitted = st.form_submit_button("Valider les briques")
 
-        all_confirmed = all(
-            st.session_state.get(f"brick_ok_{part['part_id']}")
-            for part in details
-        )
+        if submitted:
 
-        if all_confirmed:
+            checked = [
+                part
+                for part in details
+                if st.session_state.get(f"brick_ok_{part['part_id']}")
+            ]
 
-            st.success(
-                "Toutes les briques sont validées !"
-            )
-
-            # Once per analysis: without the flag the bricks would
-            # fall again on every widget click while all boxes stay
-            # checked.
-            if not st.session_state.get("rain_done"):
-                st.session_state["rain_done"] = True
+            if len(checked) == len(details):
+                st.success("Toutes les briques sont validées !")
                 st.markdown(
                     brick_rain_html(),
                     unsafe_allow_html=True,
+                )
+            else:
+                st.info(
+                    f"{len(checked)}/{len(details)} briques validées."
                 )
 
     else:
