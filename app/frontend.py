@@ -1,5 +1,6 @@
 import os
 from io import BytesIO
+from pathlib import Path
 
 import requests
 import streamlit as st
@@ -57,7 +58,11 @@ def load_part_image(url: str) -> bytes | None:
 # HEADER
 # ============================================================
 
-st.title("LegoFitter")
+# The logo has a transparent background with black lettering, which is
+# why .streamlit/config.toml pins the light theme -- on Streamlit's dark
+# theme "FITTER" would vanish. Resolved from this file, not the CWD, so
+# it works from the repo root, the container and anywhere else.
+st.image(str(Path(__file__).parent / "assets" / "logo.png"), width=520)
 
 st.write("Test de connexion à l'API LegoFitter")
 
@@ -340,79 +345,3 @@ if uploaded_file is not None:
                 f"Impossible de contacter l'API : {e}"
             )
 
-
-# ============================================================
-# TEST MANUEL REBRICKABLE
-# ============================================================
-
-st.divider()
-
-st.subheader("Rechercher une pièce LEGO")
-
-part_id = st.text_input(
-    "ID de la pièce",
-    placeholder="Exemple : 3001",
-)
-
-
-if st.button("Rechercher la pièce"):
-
-    if not part_id:
-
-        st.warning("Entrez un ID de pièce.")
-
-    else:
-
-        try:
-
-            response = requests.get(
-                f"{API_URL}/parts/{part_id}",
-                timeout=10,
-            )
-
-            if response.status_code == 200:
-
-                part = response.json()
-
-                st.success(
-                    f"{part['name']} — {part['part_num']}"
-                )
-
-                if part.get("part_img_url"):
-
-                    st.image(
-                        part["part_img_url"],
-                        width=300,
-                    )
-
-                st.write(
-                    f"Année : "
-                    f"{part['year_from']} → "
-                    f"{part['year_to']}"
-                )
-
-                if part.get("part_url"):
-
-                    st.link_button(
-                        "Voir sur Rebrickable",
-                        part["part_url"],
-                    )
-
-            elif response.status_code == 404:
-
-                st.error(
-                    "Pièce introuvable sur Rebrickable."
-                )
-
-            else:
-
-                st.error(
-                    f"Erreur API ({response.status_code}) : "
-                    f"{response.text}"
-                )
-
-        except requests.RequestException as e:
-
-            st.error(
-                f"Impossible de contacter l'API : {e}"
-            )

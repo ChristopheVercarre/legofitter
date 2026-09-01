@@ -3,6 +3,7 @@ FROM python:3.12.14-trixie
 WORKDIR /prod
 
 COPY app /prod/app
+COPY .streamlit /prod/.streamlit
 COPY requirements-streamlit.txt /prod/requirements-streamlit.txt
 
 RUN pip install --no-cache-dir --upgrade pip
