@@ -80,6 +80,27 @@ async def predict(file: UploadFile = File(...)):
             for detection in detailed["detections"]
         )
 
+        # Human-readable inventory: nobody in an audience knows what part
+        # ID "3001" is, so attach each part's name and photo from
+        # Rebrickable. Same rule as recommendations below: a Rebrickable
+        # failure (or missing key) must never take down the detections --
+        # this degrades to bare part IDs, and the frontend knows to cope.
+        inventory_details = []
+        for part_id, count in inventory.most_common():
+            entry = {
+                "part_id": part_id,
+                "count": count,
+                "name": None,
+                "img_url": None,
+            }
+            try:
+                part = get_part(part_id)
+                entry["name"] = part.get("name")
+                entry["img_url"] = part.get("part_img_url")
+            except Exception as error:
+                print(f"⚠️ Part lookup skipped for {part_id}: {error}")
+            inventory_details.append(entry)
+
         # Recommendations are the bonus, not the product. A missing API key,
         # a Rebrickable rate limit or a network blip must never take down
         # the detections we already computed -- degrade to "no
@@ -108,6 +129,7 @@ async def predict(file: UploadFile = File(...)):
             "status": "success",
             "filename": file.filename,
             "inventory": dict(inventory),
+            "inventory_details": inventory_details,
             "total_bricks": sum(inventory.values()),
             "detections": detections,
             "recommended_set": recommendations[0] if recommendations else None,

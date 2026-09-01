@@ -25,6 +25,7 @@ from app.params import (
 # Rebrickable's catalogue does not change mid-demo.
 _candidate_sets_cache: dict[str, list] = {}
 _set_inventory_cache: dict[str, dict] = {}
+_part_cache: dict[str, dict] = {}
 
 
 def _headers() -> dict:
@@ -34,13 +35,19 @@ def _headers() -> dict:
 
 
 def get_part(part_id: str):
+    if part_id in _part_cache:
+        return _part_cache[part_id]
+
     response = httpx.get(
         f"{REBRICKABLE_BASE_URL}/lego/parts/{part_id}/",
         headers=_headers(),
         timeout=10,
     )
     response.raise_for_status()
-    return response.json()
+
+    part = response.json()
+    _part_cache[part_id] = part
+    return part
 
 
 def get_set_inventory(set_num: str) -> dict[str, int]:

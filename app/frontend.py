@@ -16,6 +16,43 @@ register_heif_opener()
 API_URL = os.getenv("API_URL")
 
 
+@st.cache_data(show_spinner=False)
+def load_part_image(url: str) -> bytes | None:
+    """Download a Rebrickable part photo and make its white background
+    transparent, so the brick floats on the page instead of sitting in a
+    stark white tile.
+
+    Flood fill from the four corners, not a global threshold: only white
+    that is CONNECTED to the border becomes transparent, so a white brick
+    keeps its own white pixels. thresh=40 also catches the off-white
+    shadow gradient around Rebrickable's studio shots.
+
+    Cached by URL (Streamlit reruns this whole script on every click);
+    returns None on any failure so a broken image never breaks the page.
+    """
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        picture = Image.open(BytesIO(response.content)).convert("RGBA")
+
+        corners = [
+            (0, 0),
+            (picture.width - 1, 0),
+            (0, picture.height - 1),
+            (picture.width - 1, picture.height - 1),
+        ]
+        for corner in corners:
+            ImageDraw.floodfill(picture, corner, (0, 0, 0, 0), thresh=40)
+
+        output = BytesIO()
+        picture.save(output, format="PNG")
+        return output.getvalue()
+
+    except Exception:
+        return None
+
+
 # ============================================================
 # HEADER
 # ============================================================
@@ -181,9 +218,38 @@ if uploaded_file is not None:
                 # INVENTAIRE
                 # ------------------------------------------------
 
-                st.subheader("Inventaire détecté")
+                st.subheader("Briques identifiées")
 
-                st.json(result["inventory"])
+                details = result.get("inventory_details")
+
+                if details:
+
+                    columns = st.columns(4)
+
+                    for i, part in enumerate(details):
+
+                        with columns[i % 4]:
+
+                            image_bytes = (
+                                load_part_image(part["img_url"])
+                                if part.get("img_url")
+                                else None
+                            )
+
+                            if image_bytes:
+                                st.image(image_bytes, width=150)
+
+                            st.markdown(
+                                f"**{part['count']} ×** "
+                                f"{part.get('name') or part['part_id']}"
+                            )
+
+                            st.caption(f"Réf. {part['part_id']}")
+
+                else:
+                    # API without part details (no Rebrickable key, or an
+                    # older deployment): raw counts beat nothing.
+                    st.json(result["inventory"])
 
                 # ------------------------------------------------
                 # SET RECOMMANDÉ
