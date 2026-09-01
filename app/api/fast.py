@@ -1,7 +1,12 @@
+import tempfile
+from collections import Counter
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+
 from app.api.rebrickable import get_part
+from app.pipeline.inference import build_detailed_predictions
+from app.recommendation.recommender import recommend_sets
 
 app = FastAPI(title="LegoFitter API", version="0.1.0")
 
@@ -46,10 +51,53 @@ async def predict(file: UploadFile = File(...)):
     # result = predict_pipeline(image_bytes)
     # return result
 
-    return {
-        "status": "received",
-        "filename": file.filename,
-        "content_type": file.content_type,
-        "size_bytes": len(image_bytes),
-        "message": "Image received successfully. Prediction pipeline not connected yet.",
-    }
+    temp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=extension,
+            delete=False,
+        ) as temp_file:
+            temp_file.write(image_bytes)
+            temp_path = Path(temp_file.name)
+
+        detailed = build_detailed_predictions(temp_path)
+
+        inventory = Counter(
+            detection["predicted_class"]
+            for detection in detailed["detections"]
+        )
+
+        recommendations = recommend_sets(
+        dict(inventory),
+        candidate_sets_per_part=10,
+        max_candidates=5,
+    )
+
+        detections = [
+            {
+                "part_id": detection["predicted_class"],
+                "bbox": [int(x) for x in detection["bbox"]],
+                "detection_confidence": float(
+                    detection["detection_confidence"]
+                ),
+                "classification_confidence": float(
+                    detection["classification_confidence"]
+                ),
+            }
+            for detection in detailed["detections"]
+        ]
+
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "inventory": dict(inventory),
+            "total_bricks": sum(inventory.values()),
+            "detections": detections,
+            "recommended_set": recommendations[0] if recommendations else None,
+            "recommendations": recommendations,
+        }
+
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
