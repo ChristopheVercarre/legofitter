@@ -11,6 +11,7 @@ import os
 
 load_dotenv()
 
+
 def _env_flag(name: str, default: bool = False) -> bool:
     """Read a true/false switch from the environment.
 
@@ -52,7 +53,7 @@ MODELS_DIR = PROJECT_ROOT / os.getenv("MODELS_DIR", "models")
 # override it:  make run_vm IMG_SIZE=256
 _img_px = int(os.getenv("IMG_SIZE", 128))
 IMG_SIZE = (_img_px, _img_px)
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 RANDOM_STATE = 42  # seed for every split / subsample, so runs are comparable
 
@@ -122,9 +123,12 @@ BLUR_VARIANCE_THRESHOLD = 6
 
 # Max renders kept per class, as a multiple of that class's photo count.
 # 650/350 = 1.857 is the render:photo ratio Boiński et al. (Sci Data 2023)
-# used for their baseline training set. Set to None to train on the raw
-# ~5:1 distribution instead.
-RENDER_PHOTO_RATIO = 650 / 350
+# used for their baseline training set. Set CAP_RENDERS=false (.env, or per
+# run: make train_classification_vm CAP_RENDERS=false) to skip the cap
+# entirely and train on every render for every class -- the raw ~5:1
+# distribution, i.e. the full photos+renders dataset.
+CAP_RENDERS = _env_flag("CAP_RENDERS", default=True)
+RENDER_PHOTO_RATIO = (650 / 350) if CAP_RENDERS else None
 
 # Stratified split proportions: TEST_SIZE off the full set, then VAL_SIZE off
 # what remains. (0.15, 0.15) gives roughly 72/13/15 — training-heavy, as in
@@ -235,9 +239,11 @@ YOLO_DATASET_YAML = YOLO_DATA_DIR / "data.yaml"
 # YOLO_IMG_SIZE and YOLO_PATIENCE are deliberately not: 640 suits this dataset
 # (median box ~91px at 640, only 4% COCO-"small"), and patience should track
 # epochs rather than being tuned on its own.
-YOLO_BASE_MODEL = os.getenv("YOLO_BASE_MODEL", "yolo26n.pt")   # ultralytics downloads it
+# ultralytics downloads it
+YOLO_BASE_MODEL = os.getenv("YOLO_BASE_MODEL", "yolo26n.pt")
 YOLO_EPOCHS = _env_int("YOLO_EPOCHS", 50)
-YOLO_IMG_SIZE = 640                     # YOLO's own input size, unrelated to IMG_SIZE
+# YOLO's own input size, unrelated to IMG_SIZE
+YOLO_IMG_SIZE = 640
 YOLO_BATCH_SIZE = _env_int("YOLO_BATCH_SIZE", 8)
 YOLO_PATIENCE = 10                      # epochs without improvement before stopping
 
