@@ -1,5 +1,18 @@
 """
-Objective 1, Step 2 (part 1) — custom CNN architecture.
+Objective 1, Step 2 (part 1) — custom CNN architecture, variant 2.
+
+Oriane's experiment on top of model_oriane.py, split into its own file so the
+original keeps training unchanged (select with MODEL_NAME=oriane2). Two
+deliberate differences, nothing else:
+
+    1. NO augmentation — initialize_model() does not add build_augmentation().
+       The function itself is kept intact so this file still exposes the four
+       functions every architecture must (see models/__init__.py).
+    2. The head Dense uses "silu" instead of "relu" — the smoother swish
+       activation from Jules's silu runs. Lowercase matters: Keras's
+       activation registry is case-sensitive, "SiLu" raises
+       "Could not interpret activation function identifier".
+
 
 Owns the from-scratch CNN we train ourselves (the project brief forbids a
 pretrained backbone for this objective), sized for NUM_CLASSES.
@@ -116,7 +129,9 @@ def initialize_model() -> Sequential:
     # numbers immediately instead of "unbuilt".
     model.add(Input(shape=(*IMG_SIZE, 3)))
 
-    model.add(build_augmentation())
+    # Experiment: augmentation deliberately NOT added -- this variant
+    # trains on the raw images. Re-add build_augmentation() here to
+    # turn it back on.
 
     # --- Block 1 ---------------------------------------------------------
     model.add(
@@ -221,7 +236,7 @@ def initialize_model() -> Sequential:
     model.add(
         Dense(
             DENSE_UNITS,
-            activation="relu",
+            activation="silu",
             kernel_regularizer=regularizers.l2(L2_REG),
         )
     )
