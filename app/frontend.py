@@ -27,9 +27,12 @@ st.write("Test de connexion à l'API LegoFitter")
 
 if st.button("Tester l'API"):
     try:
+        # 30s, not 10: a cold-started Cloud Run container imports
+        # TensorFlow + PyTorch before it can answer, and the whole point of
+        # this button is to tell "API down" apart from "API waking up".
         response = requests.get(
             f"{API_URL}/ping",
-            timeout=10,
+            timeout=30,
         )
 
         response.raise_for_status()
