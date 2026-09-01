@@ -293,3 +293,10 @@ MAX_SET_SIZE = 250
 # When possible, only recommend sets that use at least this share of the
 # photographed bricks.
 MIN_INVENTORY_COVERAGE = 0.10
+
+# --- Annotation style (detection draw_boxes + the Streamlit frontend) ---
+# Vivid green: high contrast against LEGO photos (few bricks are this green,
+# unlike red), and black text on it stays readable from the back of a room.
+# app/frontend.py hardcodes the same value with a sync comment -- it cannot
+# import params.py without dragging dotenv into the slim Streamlit container.
+ANNOTATION_COLOR = "#00E676"
