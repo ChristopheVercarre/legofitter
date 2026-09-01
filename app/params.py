@@ -272,3 +272,24 @@ DETECTION_CROP_PADDING = float(os.getenv("DETECTION_CROP_PADDING", 0.10))
 # --- Bonus: Rebrickable ---
 REBRICKABLE_API_KEY = os.getenv("REBRICKABLE_API_KEY", "")
 REBRICKABLE_BASE_URL = "https://rebrickable.com/api/v3"
+
+# Free Rebrickable keys are throttled to roughly ONE request per second, and
+# the sets-containing-this-part lookup is per COLOUR -- a common brick comes
+# in dozens. Querying only the colours that appear in the most sets keeps one
+# /predict call to a handful of requests instead of a minute-long crawl.
+REBRICKABLE_MAX_COLORS_PER_PART = 3
+
+# --- Bonus: set recommendation (app/recommendation/recommender.py) ---
+# How many candidate sets to collect per detected part...
+CANDIDATE_SETS_PER_PART = 10
+# ...and how many survive to the scoring step, which is the expensive part:
+# one full (paginated) set-inventory download each.
+MAX_CANDIDATE_SETS = 5
+# Preferred set size, in pieces. A demo handful of bricks means more against
+# a ~100-piece set than against a 4,000-piece modular building.
+TARGET_SET_SIZE = 100
+MIN_SET_SIZE = 50
+MAX_SET_SIZE = 250
+# When possible, only recommend sets that use at least this share of the
+# photographed bricks.
+MIN_INVENTORY_COVERAGE = 0.10

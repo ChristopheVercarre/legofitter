@@ -7,7 +7,9 @@ from PIL import Image, ImageDraw
 from pillow_heif import register_heif_opener
 
 
-# Support HEIC / HEIF
+# iPhone photos AirDropped to the Mac arrive as .heic, which Pillow (and so
+# st.image) cannot open on its own. One call at import fixes that for the
+# whole process. Registering twice is harmless.
 register_heif_opener()
 
 

@@ -33,8 +33,7 @@ google-cloud-storage==2.14.0
 #   linux + arm64   -> plain tensorflow. This is the Docker build on an Apple
 #                      Silicon Mac; there are no CUDA wheels for arm64, and
 #                      without this line pip installs NO tensorflow at all.
-#   everything else -> plain tensorflow (macOS, Windows); macOS arm64 also
-#                      picks up tensorflow-metal below.
+#   everything else -> plain tensorflow (macOS, Windows).
 tensorflow[and-cuda]==2.16.1; sys_platform == 'linux' and platform_machine == 'x86_64'
 tensorflow==2.16.1; sys_platform == 'linux' and platform_machine != 'x86_64'
 tensorflow==2.16.1; sys_platform != 'linux'

@@ -1,131 +1,117 @@
-import os
+"""Thin Rebrickable v3 client for the bonus objective.
+
+HTTP only -- no scoring logic here (that lives in
+app.recommendation.recommender). Every call needs REBRICKABLE_API_KEY,
+read through params.py so .env works locally and a plain env var works
+on Cloud Run.
+
+Rebrickable throttles free API keys to roughly one request per second, so
+the two natural call amplifiers are capped and cached:
+  - a part's colour list is cut to the REBRICKABLE_MAX_COLORS_PER_PART
+    colours that appear in the most sets (a common brick exists in dozens);
+  - candidate-set and set-inventory lookups are cached for the life of the
+    process, so repeated /predict calls stop re-asking about part 3001.
+"""
 
 import httpx
 
+from app.params import (
+    REBRICKABLE_API_KEY,
+    REBRICKABLE_BASE_URL,
+    REBRICKABLE_MAX_COLORS_PER_PART,
+)
 
-REBRICKABLE_API_URL = "https://rebrickable.com/api/v3"
+# Process-lifetime caches, keyed by part/set ID. Small, and safe to keep:
+# Rebrickable's catalogue does not change mid-demo.
+_candidate_sets_cache: dict[str, list] = {}
+_set_inventory_cache: dict[str, dict] = {}
+
+
+def _headers() -> dict:
+    if not REBRICKABLE_API_KEY:
+        raise RuntimeError("REBRICKABLE_API_KEY is missing")
+    return {"Authorization": f"key {REBRICKABLE_API_KEY}"}
 
 
 def get_part(part_id: str):
-
-    api_key = os.getenv("REBRICKABLE_API_KEY")
-
-    if not api_key:
-        raise RuntimeError("REBRICKABLE_API_KEY is missing")
-
-    url = f"{REBRICKABLE_API_URL}/lego/parts/{part_id}/"
-
-    headers = {
-        "Authorization": f"key {api_key}"
-    }
-
     response = httpx.get(
-        url,
-        headers=headers,
+        f"{REBRICKABLE_BASE_URL}/lego/parts/{part_id}/",
+        headers=_headers(),
         timeout=10,
     )
-
     response.raise_for_status()
-
     return response.json()
 
+
 def get_set_inventory(set_num: str) -> dict[str, int]:
+    """Every part needed to build a set: {part_id: quantity}.
+
+    Colours are merged per part_id and spare parts skipped. Paginated --
+    big sets span several pages. Cached per set.
     """
-    Récupère toutes les pièces nécessaires pour construire un set Rebrickable.
+    if set_num in _set_inventory_cache:
+        return _set_inventory_cache[set_num]
 
-    Pour l'instant :
-    - on ignore les couleurs ;
-    - on ignore les pièces de rechange ;
-    - on agrège les quantités par part_id.
-    """
-
-    api_key = os.getenv("REBRICKABLE_API_KEY")
-
-    if not api_key:
-        raise RuntimeError("REBRICKABLE_API_KEY is missing")
-
-    url = f"{REBRICKABLE_API_URL}/lego/sets/{set_num}/parts/"
-
-    headers = {
-        "Authorization": f"key {api_key}"
-    }
-
-    inventory = {}
+    url = f"{REBRICKABLE_BASE_URL}/lego/sets/{set_num}/parts/"
+    inventory: dict[str, int] = {}
 
     while url:
         response = httpx.get(
             url,
-            headers=headers,
+            headers=_headers(),
             params={"page_size": 1000},
             timeout=20,
         )
-
         response.raise_for_status()
-
         data = response.json()
 
         for item in data["results"]:
-
-            # On ignore les pièces de rechange
+            # Spare parts are not part of the build
             if item.get("is_spare"):
                 continue
 
             part_id = item["part"]["part_num"]
-            quantity = item["quantity"]
+            inventory[part_id] = inventory.get(part_id, 0) + item["quantity"]
 
-            inventory[part_id] = (
-                inventory.get(part_id, 0) + quantity
-            )
-
-        # Pagination Rebrickable
+        # Rebrickable pagination
         url = data.get("next")
 
+    _set_inventory_cache[set_num] = inventory
     return inventory
 
+
 def get_candidate_sets_for_part(part_id: str, max_sets: int = 50) -> list[dict]:
+    """Sets that contain this part, any colour. Cached per part.
+
+    Rebrickable only lists sets per (part, colour), so we fetch the part's
+    colours first -- but keep only the few that appear in the most sets,
+    which stops a 30-colour brick from costing 30 extra requests.
     """
-    Retourne des sets candidats contenant cette pièce,
-    toutes couleurs confondues.
-    """
-
-    api_key = os.getenv("REBRICKABLE_API_KEY")
-
-    if not api_key:
-        raise RuntimeError("REBRICKABLE_API_KEY is missing")
-
-    headers = {
-        "Authorization": f"key {api_key}"
-    }
-
-    # 1. Récupère les couleurs connues pour cette pièce
-    colors_url = (
-        f"{REBRICKABLE_API_URL}/lego/parts/{part_id}/colors/"
-    )
+    if part_id in _candidate_sets_cache:
+        return _candidate_sets_cache[part_id]
 
     response = httpx.get(
-        colors_url,
-        headers=headers,
+        f"{REBRICKABLE_BASE_URL}/lego/parts/{part_id}/colors/",
+        headers=_headers(),
         timeout=20,
     )
-    response.raise_for_status()
+
+    if response.status_code != 200:
+        # Unknown part or a rate-limit blip: this part simply contributes
+        # no candidates; the recommender carries on with the others.
+        return []
 
     colors = response.json()["results"]
+    colors.sort(key=lambda color: color.get("num_sets") or 0, reverse=True)
+    colors = colors[:REBRICKABLE_MAX_COLORS_PER_PART]
 
-    candidate_sets = {}
+    candidate_sets: dict[str, dict] = {}
 
-    # 2. Cherche les sets pour chaque couleur
     for color in colors:
-
-        color_id = color["color_id"]
-
-        sets_url = (
-            f"{REBRICKABLE_API_URL}"
-            f"/lego/parts/{part_id}/colors/{color_id}/sets/"
-        )
-
         response = httpx.get(
-            sets_url,
-            headers=headers,
+            f"{REBRICKABLE_BASE_URL}/lego/parts/{part_id}"
+            f"/colors/{color['color_id']}/sets/",
+            headers=_headers(),
             params={"page_size": max_sets},
             timeout=20,
         )
@@ -133,10 +119,7 @@ def get_candidate_sets_for_part(part_id: str, max_sets: int = 50) -> list[dict]:
         if response.status_code != 200:
             continue
 
-        data = response.json()
-
-        for lego_set in data["results"]:
-
+        for lego_set in response.json()["results"]:
             candidate_sets[lego_set["set_num"]] = lego_set
 
             if len(candidate_sets) >= max_sets:
@@ -145,4 +128,6 @@ def get_candidate_sets_for_part(part_id: str, max_sets: int = 50) -> list[dict]:
         if len(candidate_sets) >= max_sets:
             break
 
-    return list(candidate_sets.values())
+    result = list(candidate_sets.values())
+    _candidate_sets_cache[part_id] = result
+    return result
