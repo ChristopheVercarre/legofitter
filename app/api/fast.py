@@ -2,13 +2,12 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from app.api.rebrickable import get_part
-from app.classification.evaluate import load_trained_model
 from app.classification.registry import load_model
 from app.detection.registry import load_detector
-from app.params import CLASSIFIER_RUN, DETECTOR_RUN
+from app.params import CLASSIFIER_CHOICES, CLASSIFIER_RUN, DETECTOR_RUN
 from app.pipeline.inference import build_detailed_predictions
 from app.recommendation.recommender import recommend_sets
 
@@ -18,18 +17,34 @@ app = FastAPI(title="LegoFitter API", version="0.1.0")
 # would happily load them itself, but it does so PER CALL -- seconds of disk
 # (or bucket) I/O added to every /predict. One slow cold start here buys
 # fast requests forever after.
-# CLASSIFIER_RUN / DETECTOR_RUN (params.py, env vars) pin a specific run so a
-# teammate uploading a new model to the bucket cannot change what the demo
-# answers. Empty = the historical behaviour: local checkpoint, else newest.
+# DETECTOR_RUN (params.py, env var) pins the detector so a teammate uploading
+# a new model to the bucket cannot change what the demo answers.
 detector = load_detector(DETECTOR_RUN or None)
-classifier = load_model(CLASSIFIER_RUN) if CLASSIFIER_RUN else load_trained_model()
-if classifier is None:
-    raise RuntimeError(f"Classifier run not found: {CLASSIFIER_RUN!r}")
+
+# Every classifier the frontend can pick from, keyed by display name, all
+# loaded up front: a bucket download in the middle of a demo is not an
+# option. CLASSIFIER_RUN (env var) narrows the menu to one run.
+if CLASSIFIER_RUN:
+    classifier_runs = {CLASSIFIER_RUN: CLASSIFIER_RUN}
+else:
+    classifier_runs = CLASSIFIER_CHOICES
+
+classifiers = {}
+for display_name, run_name in classifier_runs.items():
+    model = load_model(run_name)
+    if model is None:
+        raise RuntimeError(f"Classifier run not found in the bucket: {run_name!r}")
+    classifiers[display_name] = model
+    print(f"✅ Classifier ready: {display_name} = {run_name}")
+
+DEFAULT_CLASSIFIER = next(iter(classifiers))
+
 LOADED_MODELS = {
     "detector": DETECTOR_RUN or "newest (unpinned)",
-    "classifier": CLASSIFIER_RUN or "newest (unpinned)",
+    "classifiers": dict(classifier_runs),
+    "default_classifier": DEFAULT_CLASSIFIER,
 }
-print(f"✅ API ready: detector + classifier loaded {LOADED_MODELS}")
+print(f"✅ API ready: {LOADED_MODELS}")
 
 
 @app.get("/")
@@ -50,7 +65,22 @@ def part_info(part_id: str):
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(
+    file: UploadFile = File(...),
+    classifier: str | None = Form(None),
+):
+    # `classifier` is a display name from CLASSIFIER_CHOICES (see /ping).
+    # Missing = the default; unknown = 400 rather than a silent fallback,
+    # so a stale frontend can never claim it used a model it did not.
+    classifier_name = classifier or DEFAULT_CLASSIFIER
+    if classifier_name not in classifiers:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown classifier {classifier_name!r}. "
+                f"Available: {list(classifiers)}"
+            ),
+        )
 
     # Extension check -- the pipeline decodes with PIL, which (with
     # pillow-heif registered in app/detection/predict.py) handles exactly
@@ -85,7 +115,7 @@ async def predict(file: UploadFile = File(...)):
         detailed = build_detailed_predictions(
             temp_path,
             detector=detector,
-            classifier=classifier,
+            classifier=classifiers[classifier_name],
         )
 
         inventory = Counter(
@@ -141,6 +171,7 @@ async def predict(file: UploadFile = File(...)):
         return {
             "status": "success",
             "filename": file.filename,
+            "classifier": classifier_name,
             "inventory": dict(inventory),
             "inventory_details": inventory_details,
             "total_bricks": sum(inventory.values()),

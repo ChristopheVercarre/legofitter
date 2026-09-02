@@ -83,6 +83,22 @@ st.markdown(
 )
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def classifier_choices() -> list[str]:
+    """Display names of the classifiers the API can serve (from /ping).
+
+    The list lives in the API's params.py -- one source of truth -- and is
+    cached for 5 minutes so the selectbox does not ping on every rerun.
+    Empty when the API is unreachable or still on the old code.
+    """
+    try:
+        response = requests.get(f"{API_URL}/ping", timeout=30)
+        response.raise_for_status()
+        return list(response.json()["models"]["classifiers"])
+    except Exception:
+        return []
+
+
 def score_cards_html(inventory_coverage: float, compatibility: float) -> str:
     """The two recommendation scores as side-by-side cards.
 
@@ -298,6 +314,15 @@ st.divider()
 
 st.subheader("Identifier des pièces LEGO")
 
+choices = classifier_choices()
+selected_classifier = st.selectbox(
+    "Modèle de classification",
+    options=choices or ["(défaut de l'API)"],
+    disabled=not choices,
+    help="Le détecteur YOLO est le même ; seul le modèle qui nomme "
+    "chaque brique change.",
+)
+
 uploaded_file = st.file_uploader(
     "Choisissez une image",
     type=["jpg", "jpeg", "png", "heic", "heif"],
@@ -328,9 +353,16 @@ if uploaded_file is not None:
                 "Détection des briques et recherche d'un set LEGO..."
             ):
 
+                # No menu (old API) -> send nothing, the API uses its
+                # default and ignores no field it never asked for.
+                data = (
+                    {"classifier": selected_classifier} if choices else {}
+                )
+
                 response = requests.post(
                     f"{API_URL}/predict",
                     files=files,
+                    data=data,
                     timeout=120,
                 )
 
@@ -458,9 +490,16 @@ if "analysis" in st.session_state:
 
     st.subheader("Pièces détectées")
 
+    # Name the classifier the API actually used (echoed in the response),
+    # so a screenshot is never ambiguous about which model produced it.
+    used_classifier = result.get("classifier")
+    caption = "Détection YOLO + classification CNN"
+    if used_classifier:
+        caption += f" ({used_classifier})"
+
     st.image(
         annotated_image,
-        caption="Détection YOLO + classification CNN",
+        caption=caption,
         use_container_width=True,
     )
 
