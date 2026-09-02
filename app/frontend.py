@@ -83,6 +83,85 @@ st.markdown(
 )
 
 
+def score_cards_html(inventory_coverage: float, compatibility: float) -> str:
+    """The two recommendation scores as side-by-side cards.
+
+    Both ratios come from recommender.compute_compatibility() and count
+    PIECES (a 2x4 brick photographed twice counts twice), matched on
+    part ID only, colour ignored:
+      - inventory_coverage: pieces the set uses / pieces we photographed
+        ("this set uses 50% of your bricks");
+      - compatibility: pieces we have / pieces the set needs
+        ("you can build 4% of this set").
+    """
+    cards = [
+        (
+            "Pièces photographiées utilisées",
+            inventory_coverage,
+            "Part de vos briques photographiées qui servent dans ce set. "
+            "Plus c'est haut, moins il vous reste de briques inutilisées.",
+        ),
+        (
+            "Complétion du set",
+            compatibility,
+            "Part du set que vous pouvez déjà construire avec vos briques. "
+            "À 100 %, le set est entièrement constructible.",
+        ),
+    ]
+
+    cards_html = "".join(
+        f"""
+        <div class="lf-score-card">
+            <div class="lf-score-value">{value:.1%}</div>
+            <div class="lf-score-title">{title}</div>
+            <div class="lf-score-desc">{description}</div>
+        </div>
+        """
+        for title, value, description in cards
+    )
+
+    # Indented lines would read as a Markdown code block: strip them.
+    html = f"""
+    <style>
+    .lf-score-row {{
+        display: flex;
+        gap: 1rem;
+        width: 100%;
+        margin: 1rem 0 1.5rem 0;
+    }}
+    .lf-score-card {{
+        flex: 1 1 0;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.25rem 1rem;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }}
+    .lf-score-value {{
+        font-size: 2.6rem;
+        font-weight: 700;
+        line-height: 1.1;
+        color: #1f2937;
+    }}
+    .lf-score-title {{
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-top: 0.4rem;
+        color: #1f2937;
+    }}
+    .lf-score-desc {{
+        font-size: 0.9rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+        line-height: 1.35;
+    }}
+    </style>
+    <div class="lf-score-row">{cards_html}</div>
+    """
+    return "\n".join(line.strip() for line in html.splitlines())
+
+
 def brick_rain_html() -> str:
     """It rains LEGO -- the payoff for validating every brick.
 
@@ -493,14 +572,12 @@ if "analysis" in st.session_state:
                 width=400,
             )
 
-        st.write(
-            "Pièces photographiées utilisées : "
-            f"{recommended_set['inventory_coverage']:.1%}"
-        )
-
-        st.write(
-            "Complétion du set : "
-            f"{recommended_set['compatibility']:.1%}"
+        st.markdown(
+            score_cards_html(
+                recommended_set["inventory_coverage"],
+                recommended_set["compatibility"],
+            ),
+            unsafe_allow_html=True,
         )
 
         if recommended_set["buildable"]:
