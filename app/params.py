@@ -270,10 +270,21 @@ DETECTION_CONFIDENCE = float(os.getenv("DETECTION_CONFIDENCE", 0.25))
 DETECTION_CROP_PADDING = float(os.getenv("DETECTION_CROP_PADDING", 0.10))
 
 # --- Serving: which runs the API loads ---
-# The API loads "the newest run in the bucket" by default, which changes the
-# moment ANYONE uploads a new model -- the demo can silently switch models
-# between two requests. Pin the run names here (env vars on the Cloud Run
-# API service) to freeze the pair; leave empty to keep "newest".
+# Without pinning, the API loads "the newest run in the bucket", which changes
+# the moment ANYONE uploads a new model -- the demo can silently switch models
+# between two requests.
+#
+# The classifiers the frontend lets the user pick from: display name -> run
+# folder in the bucket. ALL of them are loaded when the API starts (slower
+# start, but switching on stage is instant). The first entry is the default.
+CLASSIFIER_CHOICES = {
+    "VGG16_50_classes": "classifier_vgg16_vm_224x224_20260901-063440",
+    "Oriane V2": "classifier_oriane_vm_224x224_20260831-205506",
+    "VGG16_447_classes": "classifier_vgg16_vm_128x128_20260902-035019",
+}
+# Optional overrides (env vars on the Cloud Run API service):
+#   CLASSIFIER_RUN -- a single run name; empty = CLASSIFIER_CHOICES above.
+#   DETECTOR_RUN   -- the detector run; empty = newest in the bucket.
 CLASSIFIER_RUN = os.getenv("CLASSIFIER_RUN", "")
 DETECTOR_RUN = os.getenv("DETECTOR_RUN", "")
 
