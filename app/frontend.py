@@ -4,7 +4,7 @@ from pathlib import Path
 
 import requests
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pillow_heif import register_heif_opener
 
 
@@ -81,6 +81,19 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+def upright_image(image_bytes: bytes) -> Image.Image:
+    """Decode an upload the way the API sees it: EXIF orientation applied.
+
+    A phone stores the sensor pixels and an EXIF tag saying "rotate me";
+    the API's detection/predict.py applies that tag before detecting, so
+    its boxes are in UPRIGHT coordinates. Drawing them on the raw pixels
+    would show the photo rotated or mirrored with the boxes off-target.
+    Same call, same result, on both sides.
+    """
+    image = Image.open(BytesIO(image_bytes))
+    return ImageOps.exif_transpose(image).convert("RGB")
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -332,7 +345,7 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
 
     st.image(
-        uploaded_file,
+        upright_image(uploaded_file.getvalue()),
         caption="Image à analyser",
         width=400,
     )
@@ -423,9 +436,7 @@ if "analysis" in st.session_state:
     # BOUNDING BOXES
     # ------------------------------------------------
 
-    annotated_image = Image.open(
-        BytesIO(st.session_state["analysis_image"])
-    ).convert("RGB")
+    annotated_image = upright_image(st.session_state["analysis_image"])
 
     draw = ImageDraw.Draw(annotated_image)
 
