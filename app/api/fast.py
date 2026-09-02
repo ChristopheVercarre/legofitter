@@ -6,7 +6,9 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from app.api.rebrickable import get_part
 from app.classification.evaluate import load_trained_model
+from app.classification.registry import load_model
 from app.detection.registry import load_detector
+from app.params import CLASSIFIER_RUN, DETECTOR_RUN
 from app.pipeline.inference import build_detailed_predictions
 from app.recommendation.recommender import recommend_sets
 
@@ -16,9 +18,18 @@ app = FastAPI(title="LegoFitter API", version="0.1.0")
 # would happily load them itself, but it does so PER CALL -- seconds of disk
 # (or bucket) I/O added to every /predict. One slow cold start here buys
 # fast requests forever after.
-detector = load_detector()
-classifier = load_trained_model()
-print("✅ API ready: detector + classifier loaded")
+# CLASSIFIER_RUN / DETECTOR_RUN (params.py, env vars) pin a specific run so a
+# teammate uploading a new model to the bucket cannot change what the demo
+# answers. Empty = the historical behaviour: local checkpoint, else newest.
+detector = load_detector(DETECTOR_RUN or None)
+classifier = load_model(CLASSIFIER_RUN) if CLASSIFIER_RUN else load_trained_model()
+if classifier is None:
+    raise RuntimeError(f"Classifier run not found: {CLASSIFIER_RUN!r}")
+LOADED_MODELS = {
+    "detector": DETECTOR_RUN or "newest (unpinned)",
+    "classifier": CLASSIFIER_RUN or "newest (unpinned)",
+}
+print(f"✅ API ready: detector + classifier loaded {LOADED_MODELS}")
 
 
 @app.get("/")
@@ -28,7 +39,9 @@ def root():
 
 @app.get("/ping")
 def ping():
-    return {"message": "pong"}
+    # The model names let the frontend (and a nervous presenter) verify at a
+    # glance which runs this instance is answering with.
+    return {"message": "pong", "models": LOADED_MODELS}
 
 
 @app.get("/parts/{part_id}")
