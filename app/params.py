@@ -269,6 +269,14 @@ DETECTION_CONFIDENCE = float(os.getenv("DETECTION_CONFIDENCE", 0.25))
 # out of bounds.
 DETECTION_CROP_PADDING = float(os.getenv("DETECTION_CROP_PADDING", 0.10))
 
+# --- Serving: which runs the API loads ---
+# The API loads "the newest run in the bucket" by default, which changes the
+# moment ANYONE uploads a new model -- the demo can silently switch models
+# between two requests. Pin the run names here (env vars on the Cloud Run
+# API service) to freeze the pair; leave empty to keep "newest".
+CLASSIFIER_RUN = os.getenv("CLASSIFIER_RUN", "")
+DETECTOR_RUN = os.getenv("DETECTOR_RUN", "")
+
 # --- Bonus: Rebrickable ---
 REBRICKABLE_API_KEY = os.getenv("REBRICKABLE_API_KEY", "")
 REBRICKABLE_BASE_URL = "https://rebrickable.com/api/v3"
