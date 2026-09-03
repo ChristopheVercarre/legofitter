@@ -115,6 +115,23 @@ st.markdown(
         top: 3.75rem;
         align-self: flex-start;
     }
+    /* One shared height for the pane: the photo is capped to it (a
+       portrait phone shot would otherwise run off the screen), and the
+       checklist rows are spread over the same height minus the "Tout
+       correct" line, so the last brick ends level with the photo's
+       bottom edge. */
+    :root { --lf-pane-h: calc(100vh - 11rem); }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
+        width: auto !important;
+        max-width: 100%;
+        max-height: var(--lf-pane-h);
+        object-fit: contain;
+    }
+    .st-key-brick_rows > div > div[data-testid="stVerticalBlock"],
+    .st-key-brick_rows > div[data-testid="stVerticalBlock"] {
+        height: calc(var(--lf-pane-h) - 3.5rem);
+        justify-content: space-between;
+    }
     .side-mascot { transition: opacity 0.4s ease; }
     </style>
     """,
@@ -535,10 +552,6 @@ if "analysis" in st.session_state:
 
     with photo_col:
 
-        # Marker the CSS hooks (:has) to widen the block and pin this
-        # column; renders as nothing.
-        st.markdown('<div class="lf-breakout"></div>', unsafe_allow_html=True)
-
         st.subheader("Pièces détectées")
 
         st.image(
@@ -546,6 +559,12 @@ if "analysis" in st.session_state:
             caption=caption,
             use_container_width=True,
         )
+
+        # Marker the CSS hooks (:has) to widen the block and pin this
+        # column; renders as nothing. Last, not first: as the first
+        # element it would push the title down a gap below the one on
+        # the right.
+        st.markdown('<div class="lf-breakout"></div>', unsafe_allow_html=True)
 
     # ------------------------------------------------
     # BRIQUES IDENTIFIÉES + validation (right)
@@ -591,9 +610,14 @@ if "analysis" in st.session_state:
             # analysis entirely).
             with st.form("brick_validation", border=False):
 
+                # key= gives the container a .st-key-brick_rows class,
+                # the hook the CSS uses to stretch the rows over the
+                # photo's height (the submit button stays outside it).
+                rows = st.container(key="brick_rows")
+
                 for part in details:
 
-                    row = st.columns([1, 1, 6], vertical_alignment="center")
+                    row = rows.columns([1, 1, 6], vertical_alignment="center")
 
                     with row[0]:
                         st.checkbox(
