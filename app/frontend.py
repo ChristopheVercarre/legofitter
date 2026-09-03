@@ -118,14 +118,31 @@ st.markdown(
     /* One shared height for the pane: the photo is capped to it (a
        portrait phone shot would otherwise run off the screen) and
        left-aligned under its title. The catalog pictures in the
-       checklist are sized so that N rows plus their gaps add up to
-       the same height minus the "Tout correct" line -- the last brick
-       ends level with the photo's bottom edge. --lf-rows (N) is set
-       per analysis next to the list. */
-    :root { --lf-pane-h: calc(100vh - 11rem); --lf-rows: 10; --lf-row-gap: 0.35rem; }
-    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] {
-        justify-content: flex-start;
-        align-items: flex-start;
+       checklist are sized so that N rows plus their gaps, the "Tout
+       correct" line and the "Valider" button add up to the same
+       height -- the button ends level with the photo's bottom edge.
+       --lf-rows (N) is set per analysis next to the list. */
+    /* --lf-list-chrome: the "Tout correct" line above the rows and the
+       "Valider" button below them (with their gaps) -- so the BUTTON,
+       not the last row, ends level with the photo's bottom edge. */
+    :root {
+        --lf-pane-h: calc(100vh - 11rem);
+        --lf-rows: 10;
+        --lf-row-gap: 0.35rem;
+        --lf-list-chrome: 6.4rem;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"],
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] > *,
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageContainer"] {
+        justify-content: flex-start !important;
+        align-items: flex-start !important;
+        text-align: left !important;
+        margin-left: 0 !important;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figure,
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
+        margin-left: 0 !important;
+        margin-right: auto !important;
     }
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
         width: auto !important;
@@ -136,7 +153,7 @@ st.markdown(
     .st-key-brick_rows div[data-testid="stImage"] img {
         width: auto !important;
         height: calc(
-            (var(--lf-pane-h) - 3.5rem - (var(--lf-rows) - 1) * var(--lf-row-gap))
+            (var(--lf-pane-h) - var(--lf-list-chrome) - (var(--lf-rows) - 1) * var(--lf-row-gap))
             / var(--lf-rows)
         );
         max-width: 100%;
