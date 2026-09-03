@@ -85,8 +85,18 @@ st.markdown(
        half), so the photo is big enough to read the labels next to
        the list. */
     div[data-testid="stHorizontalBlock"]:has(.lf-breakout) {
-        width: calc(100vw - 4rem);
+        /* !important: Streamlit writes its measured width as an inline
+           style on every block, which would otherwise win and leave
+           the block half as wide as intended. */
+        width: calc(100vw - 4rem) !important;
+        max-width: none !important;
         margin-left: calc(50% - 50vw + 2rem);
+    }
+    div[data-testid="stHorizontalBlock"]:has(.lf-breakout)
+        > div[data-testid="stColumn"] {
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0;
     }
     /* Checklist packed tight so ten bricks plus the button fit in one
        screen next to the photo: small row gap, labels never wrap. */
