@@ -81,11 +81,21 @@ st.markdown(
 
     /* Results pane: photo + checklist side by side. The page stays a
        narrow centred column everywhere else; only the block holding the
-       .lf-breakout marker grows past it (up to 1200px, centred), so
-       the photo is big enough to read the labels next to the list. */
+       .lf-breakout marker spans the full window (photo half, list
+       half), so the photo is big enough to read the labels next to
+       the list. */
     div[data-testid="stHorizontalBlock"]:has(.lf-breakout) {
-        width: min(1200px, 94vw);
-        margin-left: calc(50% - min(600px, 47vw));
+        width: calc(100vw - 4rem);
+        margin-left: calc(50% - 50vw + 2rem);
+    }
+    /* Checklist packed tight so ten bricks plus the button fit in one
+       screen next to the photo: small row gap, labels never wrap. */
+    div[data-testid="stForm"] div[data-testid="stVerticalBlock"] {
+        gap: 0.35rem;
+    }
+    div[data-testid="stCheckbox"] label {
+        white-space: nowrap;
+        overflow: visible;
     }
     /* The photo column stays put while the checklist scrolls past it.
        align-self:flex-start is what makes sticky work: a stretched
@@ -539,11 +549,6 @@ if "analysis" in st.session_state:
 
         if details:
 
-            st.caption(
-                "Cochez chaque brique correctement identifiée, "
-                "puis validez."
-            )
-
             def check_all_bricks():
                 """Copy the "Tout correct" box onto every per-brick box.
 
@@ -594,16 +599,21 @@ if "analysis" in st.session_state:
                             else None
                         )
                         if image_bytes:
-                            st.image(image_bytes, width=72)
+                            st.image(image_bytes, width=48)
 
                     with row[2]:
-                        # The part ID first and big: it is what the
-                        # audience just saw on the boxes in the photo.
-                        # The catalog name is the small print.
+                        # One line per brick: the part ID first and
+                        # big (what the audience just saw on the boxes
+                        # in the photo), the catalog name as small grey
+                        # print after it. One element, not two, keeps
+                        # the row as short as the image.
+                        name = part.get("name") or ""
                         st.markdown(
-                            f"**{part['part_id']}** — {part['count']} ×"
+                            f"**{part['part_id']}** — {part['count']} × "
+                            f'<span style="color:#6b7280;font-size:0.9rem">'
+                            f"{name}</span>",
+                            unsafe_allow_html=True,
                         )
-                        st.caption(part.get("name") or "")
 
                 submitted = st.form_submit_button("Valider les briques")
 
