@@ -609,6 +609,16 @@ if "analysis" in st.session_state:
 
         if details:
 
+            # Classifier confidence per brick CLASS, from the per-box
+            # detections already in the response (no API change): the
+            # average over that class's boxes -- one brick photographed
+            # twice at 99% and 97% reads "98% confiance".
+            confidences = {}
+            for detection in result.get("detections", []):
+                confidences.setdefault(detection["part_id"], []).append(
+                    detection["classification_confidence"]
+                )
+
             def check_all_bricks():
                 """Copy the "Tout correct" box onto every per-brick box.
 
@@ -678,8 +688,15 @@ if "analysis" in st.session_state:
                         # print after it. One element, not two, keeps
                         # the row as short as the image.
                         name = part.get("name") or ""
+                        scores = confidences.get(part["part_id"])
+                        confidence = (
+                            f" — {sum(scores) / len(scores):.0%} confiance"
+                            if scores
+                            else ""
+                        )
                         st.markdown(
-                            f"**{part['part_id']}** — {part['count']} × "
+                            f"**{part['part_id']}**{confidence} — "
+                            f"{part['count']} × "
                             f'<span style="color:#6b7280;font-size:0.9rem">'
                             f"{name}</span>",
                             unsafe_allow_html=True,
