@@ -4,6 +4,7 @@ from pathlib import Path
 
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pillow_heif import register_heif_opener
 
@@ -77,6 +78,24 @@ st.markdown(
         font-size: 1.05rem;
         font-weight: 600;
     }
+
+    /* Results pane: photo + checklist side by side. The page stays a
+       narrow centred column everywhere else; only the block holding the
+       .lf-breakout marker grows past it (up to 1200px, centred), so
+       the photo is big enough to read the labels next to the list. */
+    div[data-testid="stHorizontalBlock"]:has(.lf-breakout) {
+        width: min(1200px, 94vw);
+        margin-left: calc(50% - min(600px, 47vw));
+    }
+    /* The photo column stays put while the checklist scrolls past it.
+       align-self:flex-start is what makes sticky work: a stretched
+       column is as tall as the list and has nowhere to stick. */
+    div[data-testid="stColumn"]:has(.lf-breakout) {
+        position: sticky;
+        top: 3.75rem;
+        align-self: flex-start;
+    }
+    .side-mascot { transition: opacity 0.4s ease; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -476,8 +495,6 @@ if "analysis" in st.session_state:
             font=font,
         )
 
-    st.subheader("Pièces détectées")
-
     # Name the classifier the API actually used (echoed in the response),
     # so a screenshot is never ambiguous about which model produced it.
     used_classifier = result.get("classifier")
@@ -485,110 +502,166 @@ if "analysis" in st.session_state:
     if used_classifier:
         caption += f" ({used_classifier})"
 
-    st.image(
-        annotated_image,
-        caption=caption,
-        use_container_width=True,
-    )
+    # Photo on the left, checklist on the right, so the audience can
+    # compare a label on the photo with the catalog picture next to it
+    # without scrolling back and forth. The CSS at the top widens this
+    # block beyond the centred page and pins the photo while the list
+    # scrolls.
+    photo_col, list_col = st.columns([1, 1], gap="large")
 
     # ------------------------------------------------
-    # BRIQUES IDENTIFIÉES + validation
+    # BOUNDING BOXES (left, sticky)
     # ------------------------------------------------
 
-    st.subheader("Briques identifiées")
+    with photo_col:
 
-    details = result.get("inventory_details")
+        # Marker the CSS hooks (:has) to widen the block and pin this
+        # column; renders as nothing.
+        st.markdown('<div class="lf-breakout"></div>', unsafe_allow_html=True)
 
-    if details:
+        st.subheader("Pièces détectées")
 
-        st.caption(
-            "Cochez chaque brique correctement identifiée, "
-            "puis validez."
+        st.image(
+            annotated_image,
+            caption=caption,
+            use_container_width=True,
         )
 
-        def check_all_bricks():
-            """Copy the "Tout correct" box onto every per-brick box.
+    # ------------------------------------------------
+    # BRIQUES IDENTIFIÉES + validation (right)
+    # ------------------------------------------------
 
-            Runs as the on_change callback, i.e. BEFORE the script reruns
-            and before the per-brick checkboxes are instantiated -- the
-            one moment Streamlit lets us write their session_state keys.
-            """
-            value = st.session_state["brick_ok_all"]
-            for part in details:
-                st.session_state[f"brick_ok_{part['part_id']}"] = value
+    with list_col:
 
-        # Outside the form on purpose: a form widget only reports on
-        # submit, and this one must tick the others the instant it is
-        # clicked. Same first-column width as the rows below, so its box
-        # lines up with theirs; the label gets the second column's room.
-        header_cols = st.columns([2, 6], vertical_alignment="center")
-        with header_cols[0]:
-            st.checkbox(
-                "Tout correct",
-                key="brick_ok_all",
-                on_change=check_all_bricks,
+        st.subheader("Briques identifiées")
+
+        details = result.get("inventory_details")
+
+        if details:
+
+            st.caption(
+                "Cochez chaque brique correctement identifiée, "
+                "puis validez."
             )
 
-        # A form batches the checkboxes: clicking one changes NOTHING
-        # server-side until the submit button -- no rerun, no spinner,
-        # no websocket flood (unbatched, 2-3 quick clicks could drop
-        # the Cloud Run session and lose the analysis entirely).
-        with st.form("brick_validation", border=False):
+            def check_all_bricks():
+                """Copy the "Tout correct" box onto every per-brick box.
 
-            for part in details:
+                Runs as the on_change callback, i.e. BEFORE the script
+                reruns and before the per-brick checkboxes are
+                instantiated -- the one moment Streamlit lets us write
+                their session_state keys.
+                """
+                value = st.session_state["brick_ok_all"]
+                for part in details:
+                    st.session_state[f"brick_ok_{part['part_id']}"] = value
 
-                row = st.columns([1, 1, 6], vertical_alignment="center")
+            # Outside the form on purpose: a form widget only reports on
+            # submit, and this one must tick the others the instant it
+            # is clicked. Same first-column width as the rows below, so
+            # its box lines up with theirs; the label gets the second
+            # column's room.
+            header_cols = st.columns([2, 6], vertical_alignment="center")
+            with header_cols[0]:
+                st.checkbox(
+                    "Tout correct",
+                    key="brick_ok_all",
+                    on_change=check_all_bricks,
+                )
 
-                with row[0]:
-                    st.checkbox(
-                        part["part_id"],
-                        key=f"brick_ok_{part['part_id']}",
-                        label_visibility="collapsed",
-                    )
+            # A form batches the checkboxes: clicking one changes
+            # NOTHING server-side until the submit button -- no rerun,
+            # no spinner, no websocket flood (unbatched, 2-3 quick
+            # clicks could drop the Cloud Run session and lose the
+            # analysis entirely).
+            with st.form("brick_validation", border=False):
 
-                with row[1]:
-                    image_bytes = (
-                        load_part_image(part["img_url"])
-                        if part.get("img_url")
-                        else None
-                    )
-                    if image_bytes:
-                        st.image(image_bytes, width=72)
+                for part in details:
 
-                with row[2]:
-                    # The part ID first and big: it is what the audience
-                    # just saw on the boxes in the photo. The catalog
-                    # name is the small print.
+                    row = st.columns([1, 1, 6], vertical_alignment="center")
+
+                    with row[0]:
+                        st.checkbox(
+                            part["part_id"],
+                            key=f"brick_ok_{part['part_id']}",
+                            label_visibility="collapsed",
+                        )
+
+                    with row[1]:
+                        image_bytes = (
+                            load_part_image(part["img_url"])
+                            if part.get("img_url")
+                            else None
+                        )
+                        if image_bytes:
+                            st.image(image_bytes, width=72)
+
+                    with row[2]:
+                        # The part ID first and big: it is what the
+                        # audience just saw on the boxes in the photo.
+                        # The catalog name is the small print.
+                        st.markdown(
+                            f"**{part['part_id']}** — {part['count']} ×"
+                        )
+                        st.caption(part.get("name") or "")
+
+                submitted = st.form_submit_button("Valider les briques")
+
+            if submitted:
+
+                checked = [
+                    part
+                    for part in details
+                    if st.session_state.get(f"brick_ok_{part['part_id']}")
+                ]
+
+                if len(checked) == len(details):
+                    st.success("Toutes les briques sont validées !")
                     st.markdown(
-                        f"**{part['part_id']}** — {part['count']} ×"
+                        brick_rain_html(),
+                        unsafe_allow_html=True,
                     )
-                    st.caption(part.get("name") or "")
+                else:
+                    st.info(
+                        f"{len(checked)}/{len(details)} briques validées."
+                    )
 
-            submitted = st.form_submit_button("Valider les briques")
+        else:
+            # API without part details (no Rebrickable key, or an
+            # older deployment): raw counts beat nothing.
+            st.json(result["inventory"])
 
-        if submitted:
-
-            checked = [
-                part
-                for part in details
-                if st.session_state.get(f"brick_ok_{part['part_id']}")
-            ]
-
-            if len(checked) == len(details):
-                st.success("Toutes les briques sont validées !")
-                st.markdown(
-                    brick_rain_html(),
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.info(
-                    f"{len(checked)}/{len(details)} briques validées."
-                )
-
-    else:
-        # API without part details (no Rebrickable key, or an
-        # older deployment): raw counts beat nothing.
-        st.json(result["inventory"])
+    # The widened block runs under the side mascots, so they fade out
+    # while it is on screen and come back once the page scrolls on to
+    # the recommended set. Streamlit strips <script> from st.markdown,
+    # but a components.html iframe runs it and can reach the parent
+    # page. One poller per page (guarded on window.parent), 200ms --
+    # cheaper than wiring a scroll listener to Streamlit's own scroll
+    # container, whose selector changes between versions.
+    components.html(
+        """
+        <script>
+        const win = window.parent;
+        if (!win.__lfMascotWatch) {
+            win.__lfMascotWatch = setInterval(() => {
+                const doc = win.document;
+                const marker = doc.querySelector(".lf-breakout");
+                const block = marker
+                    && marker.closest('[data-testid="stHorizontalBlock"]');
+                let hide = false;
+                if (block) {
+                    const r = block.getBoundingClientRect();
+                    hide = r.top < win.innerHeight && r.bottom > 0;
+                }
+                doc.querySelectorAll(".side-mascot").forEach((m) => {
+                    m.style.opacity = hide ? "0" : "1";
+                });
+            }, 200);
+        }
+        </script>
+        """,
+        height=0,
+    )
 
     # ------------------------------------------------
     # SET RECOMMANDÉ
