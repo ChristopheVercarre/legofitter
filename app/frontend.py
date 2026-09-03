@@ -92,11 +92,18 @@ st.markdown(
         max-width: none !important;
         margin-left: calc(50% - 50vw + 2rem);
     }
+    /* The photo column shrinks to the photo (which is sized by height,
+       so it is rarely half the window); the checklist takes the rest,
+       so the two sit next to each other with no dead band between. */
     div[data-testid="stHorizontalBlock"]:has(.lf-breakout)
         > div[data-testid="stColumn"] {
         flex: 1 1 0 !important;
         width: auto !important;
         min-width: 0;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) {
+        flex: 0 0 auto !important;
+        max-width: 55%;
     }
     /* Checklist packed tight so ten bricks plus the button fit in one
        screen next to the photo: small row gap, labels never wrap. */
@@ -136,8 +143,14 @@ st.markdown(
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageContainer"] {
         justify-content: flex-start !important;
         align-items: flex-start !important;
-        text-align: left !important;
         margin-left: 0 !important;
+    }
+    /* Caption centred under the photo, not under the column. */
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageCaption"],
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figcaption {
+        width: 100%;
+        text-align: center !important;
+        align-self: stretch !important;
     }
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figure,
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
@@ -146,7 +159,7 @@ st.markdown(
     }
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
         width: auto !important;
-        max-width: 100%;
+        max-width: 50vw;
         max-height: var(--lf-pane-h);
         object-fit: contain;
     }
