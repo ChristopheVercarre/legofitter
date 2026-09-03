@@ -92,18 +92,11 @@ st.markdown(
         max-width: none !important;
         margin-left: calc(50% - 50vw + 2rem);
     }
-    /* The photo column shrinks to the photo (which is sized by height,
-       so it is rarely half the window); the checklist takes the rest,
-       so the two sit next to each other with no dead band between. */
     div[data-testid="stHorizontalBlock"]:has(.lf-breakout)
         > div[data-testid="stColumn"] {
         flex: 1 1 0 !important;
         width: auto !important;
         min-width: 0;
-    }
-    div[data-testid="stColumn"]:has(.lf-breakout) {
-        flex: 0 0 auto !important;
-        max-width: 55%;
     }
     /* Checklist packed tight so ten bricks plus the button fit in one
        screen next to the photo: small row gap, labels never wrap. */
@@ -124,7 +117,7 @@ st.markdown(
     }
     /* One shared height for the pane: the photo is capped to it (a
        portrait phone shot would otherwise run off the screen) and
-       left-aligned under its title. The catalog pictures in the
+       centred in its column, title and caption with it. The catalog pictures in the
        checklist are sized so that N rows plus their gaps, the "Tout
        correct" line and the "Valider" button add up to the same
        height -- the button ends level with the photo's bottom edge.
@@ -138,24 +131,22 @@ st.markdown(
         --lf-row-gap: 0.35rem;
         --lf-list-chrome: 6.4rem;
     }
+    /* Photo, its caption and its title all centred in the left pane. */
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"],
-    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] > *,
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageContainer"] {
-        justify-content: flex-start !important;
-        align-items: flex-start !important;
-        margin-left: 0 !important;
-    }
-    /* Caption centred under the photo, not under the column. */
-    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageCaption"],
-    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figcaption {
-        width: 100%;
-        text-align: center !important;
-        align-self: stretch !important;
+        justify-content: center !important;
+        align-items: center !important;
     }
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figure,
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
-        margin-left: 0 !important;
+        margin-left: auto !important;
         margin-right: auto !important;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageCaption"],
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figcaption,
+    div[data-testid="stColumn"]:has(.lf-breakout) h3 {
+        width: 100%;
+        text-align: center !important;
     }
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
         width: auto !important;
