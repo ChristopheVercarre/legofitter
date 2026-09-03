@@ -575,6 +575,8 @@ if "analysis" in st.session_state:
     # without scrolling back and forth. The CSS at the top widens this
     # block beyond the centred page and pins the photo while the list
     # scrolls.
+    st.divider()
+
     photo_col, list_col = st.columns([1, 1], gap="large")
 
     # ------------------------------------------------
