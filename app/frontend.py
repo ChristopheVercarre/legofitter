@@ -4,6 +4,7 @@ from pathlib import Path
 
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pillow_heif import register_heif_opener
 
@@ -77,6 +78,92 @@ st.markdown(
         font-size: 1.05rem;
         font-weight: 600;
     }
+
+    /* Results pane: photo + checklist side by side. The page stays a
+       narrow centred column everywhere else; only the block holding the
+       .lf-breakout marker spans the full window (photo half, list
+       half), so the photo is big enough to read the labels next to
+       the list. */
+    div[data-testid="stHorizontalBlock"]:has(.lf-breakout) {
+        /* !important: Streamlit writes its measured width as an inline
+           style on every block, which would otherwise win and leave
+           the block half as wide as intended. */
+        width: calc(100vw - 4rem) !important;
+        max-width: none !important;
+        margin-left: calc(50% - 50vw + 2rem);
+    }
+    div[data-testid="stHorizontalBlock"]:has(.lf-breakout)
+        > div[data-testid="stColumn"] {
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0;
+    }
+    /* Checklist packed tight so ten bricks plus the button fit in one
+       screen next to the photo: small row gap, labels never wrap. */
+    div[data-testid="stForm"] div[data-testid="stVerticalBlock"] {
+        gap: var(--lf-row-gap);
+    }
+    div[data-testid="stCheckbox"] label {
+        white-space: nowrap;
+        overflow: visible;
+    }
+    /* The photo column stays put while the checklist scrolls past it.
+       align-self:flex-start is what makes sticky work: a stretched
+       column is as tall as the list and has nowhere to stick. */
+    div[data-testid="stColumn"]:has(.lf-breakout) {
+        position: sticky;
+        top: 3.75rem;
+        align-self: flex-start;
+    }
+    /* One shared height for the pane: the photo is capped to it (a
+       portrait phone shot would otherwise run off the screen) and
+       centred in its column, title and caption with it. The catalog pictures in the
+       checklist are sized so that N rows plus their gaps, the "Tout
+       correct" line and the "Valider" button add up to the same
+       height -- the button ends level with the photo's bottom edge.
+       --lf-rows (N) is set per analysis next to the list. */
+    /* --lf-list-chrome: the "Tout correct" line above the rows and the
+       "Valider" button below them (with their gaps) -- so the BUTTON,
+       not the last row, ends level with the photo's bottom edge. */
+    :root {
+        --lf-pane-h: calc(100vh - 11rem);
+        --lf-rows: 10;
+        --lf-row-gap: 0.35rem;
+        --lf-list-chrome: 6.4rem;
+    }
+    /* Photo, its caption and its title all centred in the left pane. */
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"],
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageContainer"] {
+        justify-content: center !important;
+        align-items: center !important;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figure,
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImageCaption"],
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] figcaption,
+    div[data-testid="stColumn"]:has(.lf-breakout) h3 {
+        width: 100%;
+        text-align: center !important;
+    }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
+        width: auto !important;
+        max-width: 50vw;
+        max-height: var(--lf-pane-h);
+        object-fit: contain;
+    }
+    .st-key-brick_rows div[data-testid="stImage"] img {
+        width: auto !important;
+        height: calc(
+            (var(--lf-pane-h) - var(--lf-list-chrome) - (var(--lf-rows) - 1) * var(--lf-row-gap))
+            / var(--lf-rows)
+        );
+        max-width: 100%;
+        object-fit: contain;
+    }
+    .side-mascot { transition: opacity 0.4s ease; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -94,6 +181,48 @@ def upright_image(image_bytes: bytes) -> Image.Image:
     """
     image = Image.open(BytesIO(image_bytes))
     return ImageOps.exif_transpose(image).convert("RGB")
+
+
+def reading_order(details: list[dict], detections: list[dict], height: int) -> list[dict]:
+    """Sort the brick classes the way the eye reads the photo: left to
+    right, then down.
+
+    A plain (y, x) sort is pixel-exact -- a brick 5px higher than its
+    neighbour comes first even if it sits far to the right. Instead the
+    boxes are grouped into rows: walking down the photo, a box joins the
+    current row when its vertical centre is within ROW_TOLERANCE (the
+    row's first box height, or 6% of the photo, whichever is larger) of
+    that first box; otherwise it starts a new row. Rows read top to
+    bottom, boxes within a row left to right. A class with several
+    boxes is placed by its first box in that order; a class the
+    detections do not mention (should not happen) goes last.
+    """
+    boxes = sorted(
+        (
+            ((d["bbox"][1] + d["bbox"][3]) / 2,   # y centre
+             (d["bbox"][0] + d["bbox"][2]) / 2,   # x centre
+             d["bbox"][3] - d["bbox"][1],         # height
+             d["part_id"])
+            for d in detections
+        )
+    )
+
+    rows: list[list[tuple]] = []
+    for box in boxes:
+        y, _, h, _ = box
+        if rows:
+            anchor_y, _, anchor_h, _ = rows[-1][0]
+            if abs(y - anchor_y) <= max(anchor_h, 0.06 * height):
+                rows[-1].append(box)
+                continue
+        rows.append([box])
+
+    rank = {}
+    for row in rows:
+        for _, x, _, part_id in sorted(row, key=lambda b: b[1]):
+            rank.setdefault(part_id, len(rank))
+
+    return sorted(details, key=lambda part: rank.get(part["part_id"], len(rank)))
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -297,33 +426,10 @@ logo_column.image(
 
 st.markdown(side_mascots_html(), unsafe_allow_html=True)
 
-st.write("Test de connexion à l'API LegoFitter")
-
-
-if st.button("Tester l'API"):
-    try:
-        # 30s, not 10: a cold-started Cloud Run container imports
-        # TensorFlow + PyTorch before it can answer, and the whole point of
-        # this button is to tell "API down" apart from "API waking up".
-        response = requests.get(
-            f"{API_URL}/ping",
-            timeout=30,
-        )
-
-        response.raise_for_status()
-
-        st.success("API connectée")
-        st.json(response.json())
-
-    except requests.RequestException as e:
-        st.error(f"Erreur de connexion à l'API : {e}")
-
 
 # ============================================================
 # ANALYSE LEGO
 # ============================================================
-
-st.divider()
 
 st.subheader("Identifier des pièces LEGO")
 
@@ -499,8 +605,6 @@ if "analysis" in st.session_state:
             font=font,
         )
 
-    st.subheader("Pièces détectées")
-
     # Name the classifier the API actually used (echoed in the response),
     # so a screenshot is never ambiguous about which model produced it.
     used_classifier = result.get("classifier")
@@ -508,90 +612,204 @@ if "analysis" in st.session_state:
     if used_classifier:
         caption += f" ({used_classifier})"
 
-    st.image(
-        annotated_image,
-        caption=caption,
-        use_container_width=True,
-    )
+    # Photo on the left, checklist on the right, so the audience can
+    # compare a label on the photo with the catalog picture next to it
+    # without scrolling back and forth. The CSS at the top widens this
+    # block beyond the centred page and pins the photo while the list
+    # scrolls.
+    st.divider()
+
+    photo_col, list_col = st.columns([1, 1], gap="large")
 
     # ------------------------------------------------
-    # BRIQUES IDENTIFIÉES + validation
+    # BOUNDING BOXES (left, sticky)
     # ------------------------------------------------
 
-    st.subheader("Briques identifiées")
+    with photo_col:
 
-    details = result.get("inventory_details")
+        st.subheader("Pièces détectées")
 
-    if details:
-
-        st.caption(
-            "Cochez chaque brique correctement identifiée, "
-            "puis validez."
+        st.image(
+            annotated_image,
+            caption=caption,
+            use_container_width=True,
         )
 
-        # A form batches the checkboxes: clicking one changes NOTHING
-        # server-side until the submit button -- no rerun, no spinner,
-        # no websocket flood (unbatched, 2-3 quick clicks could drop
-        # the Cloud Run session and lose the analysis entirely).
-        with st.form("brick_validation", border=False):
+        # Marker the CSS hooks (:has) to widen the block and pin this
+        # column; renders as nothing. Last, not first: as the first
+        # element it would push the title down a gap below the one on
+        # the right.
+        st.markdown('<div class="lf-breakout"></div>', unsafe_allow_html=True)
 
-            header_cols = st.columns([1, 1, 6])
-            header_cols[0].markdown("**Correct**")
+    # ------------------------------------------------
+    # BRIQUES IDENTIFIÉES + validation (right)
+    # ------------------------------------------------
 
-            for part in details:
+    with list_col:
 
-                row = st.columns([1, 1, 6], vertical_alignment="center")
+        st.subheader("Briques identifiées")
 
-                with row[0]:
-                    st.checkbox(
-                        part["part_id"],
-                        key=f"brick_ok_{part['part_id']}",
-                        label_visibility="collapsed",
-                    )
+        details = result.get("inventory_details")
 
-                with row[1]:
-                    image_bytes = (
-                        load_part_image(part["img_url"])
-                        if part.get("img_url")
-                        else None
-                    )
-                    if image_bytes:
-                        st.image(image_bytes, width=72)
+        if details:
+            details = reading_order(
+                details,
+                result.get("detections", []),
+                annotated_image.height,
+            )
 
-                with row[2]:
-                    # The part ID first and big: it is what the audience
-                    # just saw on the boxes in the photo. The catalog
-                    # name is the small print.
-                    st.markdown(
-                        f"**{part['part_id']}** — {part['count']} ×"
-                    )
-                    st.caption(part.get("name") or "")
+        if details:
 
-            submitted = st.form_submit_button("Valider les briques")
+            # Classifier confidence per brick CLASS, from the per-box
+            # detections already in the response (no API change): the
+            # average over that class's boxes -- one brick photographed
+            # twice at 99% and 97% reads "98% confiance".
+            confidences = {}
+            for detection in result.get("detections", []):
+                confidences.setdefault(detection["part_id"], []).append(
+                    detection["classification_confidence"]
+                )
 
-        if submitted:
+            def check_all_bricks():
+                """Copy the "Tout correct" box onto every per-brick box.
 
-            checked = [
-                part
-                for part in details
-                if st.session_state.get(f"brick_ok_{part['part_id']}")
-            ]
+                Runs as the on_change callback, i.e. BEFORE the script
+                reruns and before the per-brick checkboxes are
+                instantiated -- the one moment Streamlit lets us write
+                their session_state keys.
+                """
+                value = st.session_state["brick_ok_all"]
+                for part in details:
+                    st.session_state[f"brick_ok_{part['part_id']}"] = value
 
-            if len(checked) == len(details):
-                st.success("Toutes les briques sont validées !")
+            # Outside the form on purpose: a form widget only reports on
+            # submit, and this one must tick the others the instant it
+            # is clicked. Same first-column width as the rows below, so
+            # its box lines up with theirs; the label gets the second
+            # column's room.
+            header_cols = st.columns([2, 6], vertical_alignment="center")
+            with header_cols[0]:
+                st.checkbox(
+                    "Tout correct",
+                    key="brick_ok_all",
+                    on_change=check_all_bricks,
+                )
+
+            # A form batches the checkboxes: clicking one changes
+            # NOTHING server-side until the submit button -- no rerun,
+            # no spinner, no websocket flood (unbatched, 2-3 quick
+            # clicks could drop the Cloud Run session and lose the
+            # analysis entirely).
+            with st.form("brick_validation", border=False):
+
+                # key= gives the container a .st-key-brick_rows class,
+                # the hook the CSS uses to size the catalog pictures so
+                # the rows fill the photo's height (the submit button
+                # stays outside it). The row count feeds that formula.
                 st.markdown(
-                    brick_rain_html(),
+                    f"<style>:root{{--lf-rows:{len(details)}}}</style>",
                     unsafe_allow_html=True,
                 )
-            else:
-                st.info(
-                    f"{len(checked)}/{len(details)} briques validées."
-                )
+                rows = st.container(key="brick_rows")
 
-    else:
-        # API without part details (no Rebrickable key, or an
-        # older deployment): raw counts beat nothing.
-        st.json(result["inventory"])
+                for part in details:
+
+                    row = rows.columns([1, 1, 6], vertical_alignment="center")
+
+                    with row[0]:
+                        st.checkbox(
+                            part["part_id"],
+                            key=f"brick_ok_{part['part_id']}",
+                            label_visibility="collapsed",
+                        )
+
+                    with row[1]:
+                        image_bytes = (
+                            load_part_image(part["img_url"])
+                            if part.get("img_url")
+                            else None
+                        )
+                        if image_bytes:
+                            st.image(image_bytes, width=48)
+
+                    with row[2]:
+                        # One line per brick: the part ID first and
+                        # big (what the audience just saw on the boxes
+                        # in the photo), the catalog name as small grey
+                        # print after it. One element, not two, keeps
+                        # the row as short as the image.
+                        name = part.get("name") or ""
+                        scores = confidences.get(part["part_id"])
+                        confidence = (
+                            f" — {sum(scores) / len(scores):.0%} confiance"
+                            if scores
+                            else ""
+                        )
+                        st.markdown(
+                            f"**{part['part_id']}**{confidence} — "
+                            f"{part['count']} × "
+                            f'<span style="color:#6b7280;font-size:0.9rem">'
+                            f"{name}</span>",
+                            unsafe_allow_html=True,
+                        )
+
+                submitted = st.form_submit_button("Valider les briques")
+
+            if submitted:
+
+                checked = [
+                    part
+                    for part in details
+                    if st.session_state.get(f"brick_ok_{part['part_id']}")
+                ]
+
+                if len(checked) == len(details):
+                    st.success("Toutes les briques sont validées !")
+                    st.markdown(
+                        brick_rain_html(),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.info(
+                        f"{len(checked)}/{len(details)} briques validées."
+                    )
+
+        else:
+            # API without part details (no Rebrickable key, or an
+            # older deployment): raw counts beat nothing.
+            st.json(result["inventory"])
+
+    # The widened block runs under the side mascots, so they fade out
+    # while it is on screen and come back once the page scrolls on to
+    # the recommended set. Streamlit strips <script> from st.markdown,
+    # but a components.html iframe runs it and can reach the parent
+    # page. One poller per page (guarded on window.parent), 200ms --
+    # cheaper than wiring a scroll listener to Streamlit's own scroll
+    # container, whose selector changes between versions.
+    components.html(
+        """
+        <script>
+        const win = window.parent;
+        if (!win.__lfMascotWatch) {
+            win.__lfMascotWatch = setInterval(() => {
+                const doc = win.document;
+                const marker = doc.querySelector(".lf-breakout");
+                const block = marker
+                    && marker.closest('[data-testid="stHorizontalBlock"]');
+                let hide = false;
+                if (block) {
+                    const r = block.getBoundingClientRect();
+                    hide = r.top < win.innerHeight && r.bottom > 0;
+                }
+                doc.querySelectorAll(".side-mascot").forEach((m) => {
+                    m.style.opacity = hide ? "0" : "1";
+                });
+            }, 200);
+        }
+        </script>
+        """,
+        height=0,
+    )
 
     # ------------------------------------------------
     # SET RECOMMANDÉ
