@@ -297,33 +297,10 @@ logo_column.image(
 
 st.markdown(side_mascots_html(), unsafe_allow_html=True)
 
-st.write("Test de connexion à l'API LegoFitter")
-
-
-if st.button("Tester l'API"):
-    try:
-        # 30s, not 10: a cold-started Cloud Run container imports
-        # TensorFlow + PyTorch before it can answer, and the whole point of
-        # this button is to tell "API down" apart from "API waking up".
-        response = requests.get(
-            f"{API_URL}/ping",
-            timeout=30,
-        )
-
-        response.raise_for_status()
-
-        st.success("API connectée")
-        st.json(response.json())
-
-    except requests.RequestException as e:
-        st.error(f"Erreur de connexion à l'API : {e}")
-
 
 # ============================================================
 # ANALYSE LEGO
 # ============================================================
-
-st.divider()
 
 st.subheader("Identifier des pièces LEGO")
 
@@ -529,14 +506,34 @@ if "analysis" in st.session_state:
             "puis validez."
         )
 
+        def check_all_bricks():
+            """Copy the "Tout correct" box onto every per-brick box.
+
+            Runs as the on_change callback, i.e. BEFORE the script reruns
+            and before the per-brick checkboxes are instantiated -- the
+            one moment Streamlit lets us write their session_state keys.
+            """
+            value = st.session_state["brick_ok_all"]
+            for part in details:
+                st.session_state[f"brick_ok_{part['part_id']}"] = value
+
+        # Outside the form on purpose: a form widget only reports on
+        # submit, and this one must tick the others the instant it is
+        # clicked. Same first-column width as the rows below, so its box
+        # lines up with theirs; the label gets the second column's room.
+        header_cols = st.columns([2, 6], vertical_alignment="center")
+        with header_cols[0]:
+            st.checkbox(
+                "Tout correct",
+                key="brick_ok_all",
+                on_change=check_all_bricks,
+            )
+
         # A form batches the checkboxes: clicking one changes NOTHING
         # server-side until the submit button -- no rerun, no spinner,
         # no websocket flood (unbatched, 2-3 quick clicks could drop
         # the Cloud Run session and lose the analysis entirely).
         with st.form("brick_validation", border=False):
-
-            header_cols = st.columns([1, 1, 6])
-            header_cols[0].markdown("**Correct**")
 
             for part in details:
 
