@@ -183,6 +183,48 @@ def upright_image(image_bytes: bytes) -> Image.Image:
     return ImageOps.exif_transpose(image).convert("RGB")
 
 
+def reading_order(details: list[dict], detections: list[dict], height: int) -> list[dict]:
+    """Sort the brick classes the way the eye reads the photo: left to
+    right, then down.
+
+    A plain (y, x) sort is pixel-exact -- a brick 5px higher than its
+    neighbour comes first even if it sits far to the right. Instead the
+    boxes are grouped into rows: walking down the photo, a box joins the
+    current row when its vertical centre is within ROW_TOLERANCE (the
+    row's first box height, or 6% of the photo, whichever is larger) of
+    that first box; otherwise it starts a new row. Rows read top to
+    bottom, boxes within a row left to right. A class with several
+    boxes is placed by its first box in that order; a class the
+    detections do not mention (should not happen) goes last.
+    """
+    boxes = sorted(
+        (
+            ((d["bbox"][1] + d["bbox"][3]) / 2,   # y centre
+             (d["bbox"][0] + d["bbox"][2]) / 2,   # x centre
+             d["bbox"][3] - d["bbox"][1],         # height
+             d["part_id"])
+            for d in detections
+        )
+    )
+
+    rows: list[list[tuple]] = []
+    for box in boxes:
+        y, _, h, _ = box
+        if rows:
+            anchor_y, _, anchor_h, _ = rows[-1][0]
+            if abs(y - anchor_y) <= max(anchor_h, 0.06 * height):
+                rows[-1].append(box)
+                continue
+        rows.append([box])
+
+    rank = {}
+    for row in rows:
+        for _, x, _, part_id in sorted(row, key=lambda b: b[1]):
+            rank.setdefault(part_id, len(rank))
+
+    return sorted(details, key=lambda part: rank.get(part["part_id"], len(rank)))
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def classifier_choices() -> list[str]:
     """Display names of the classifiers the API can serve (from /ping).
@@ -608,6 +650,13 @@ if "analysis" in st.session_state:
         st.subheader("Briques identifiées")
 
         details = result.get("inventory_details")
+
+        if details:
+            details = reading_order(
+                details,
+                result.get("detections", []),
+                annotated_image.height,
+            )
 
         if details:
 
