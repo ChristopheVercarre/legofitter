@@ -183,6 +183,75 @@ def upright_image(image_bytes: bytes) -> Image.Image:
     return ImageOps.exif_transpose(image).convert("RGB")
 
 
+# Longest side of the annotated photo shown on the page. A 12MP iPhone
+# shot is 4032px; the page never shows it wider than ~900px, and drawing
+# on the full frame costs ~100MB of RAM per pass.
+DISPLAY_MAX_SIDE = 1600
+
+
+def annotate(image_bytes: bytes, detections: list[dict]) -> tuple[bytes, int]:
+    """Draw the detections on a display-sized copy of the photo.
+
+    Returns (JPEG bytes, height of the ORIGINAL upright photo -- the
+    coordinate space of the detections, which reading_order() needs).
+
+    Called ONCE per analysis and the result parked in session_state.
+    Doing this on every rerun (every checkbox click) used to decode the
+    full-resolution upload each time; on Cloud Run's 512MiB container
+    that peaked past the limit, the container was killed, the websocket
+    dropped and the page reloaded with the analysis gone.
+
+    Same style as app/detection/predict.py's draw_boxes(): labels and
+    line widths scale with the photo, each label on a filled background
+    so it never blends into a busy photo, in a vivid green -- red
+    vanished against warm-coloured bricks. Keep the colour in sync with
+    params.ANNOTATION_COLOR (not imported: the slim Streamlit container
+    has no dotenv).
+    """
+    image = upright_image(image_bytes)
+    original_height = image.height
+
+    scale = min(1.0, DISPLAY_MAX_SIDE / max(image.size))
+    if scale < 1.0:
+        image = image.resize(
+            (round(image.width * scale), round(image.height * scale)),
+            Image.LANCZOS,
+        )
+
+    draw = ImageDraw.Draw(image)
+    annotation_color = "#00E676"
+
+    shortest = min(image.size)
+    font_size = max(16, shortest // 30)
+    line_width = max(4, shortest // 300)
+    pad = max(2, font_size // 5)
+    font = ImageFont.load_default(size=font_size)
+
+    for detection in detections:
+
+        x1, y1, x2, y2 = (v * scale for v in detection["bbox"])
+        label = f"{detection['part_id']} {detection['classification_confidence']:.0%}"
+
+        draw.rectangle([x1, y1, x2, y2], outline=annotation_color, width=line_width)
+
+        # Label just above the box; just below it when the box touches
+        # the top edge of the photo.
+        text_width = draw.textlength(label, font=font)
+        text_y = y1 - font_size - 2 * pad - line_width
+        if text_y < 0:
+            text_y = y2 + line_width
+
+        draw.rectangle(
+            [x1, text_y, x1 + text_width + 2 * pad, text_y + font_size + 2 * pad],
+            fill=annotation_color,
+        )
+        draw.text((x1 + pad, text_y + pad), label, fill="black", font=font)
+
+    output = BytesIO()
+    image.save(output, format="JPEG", quality=90)
+    return output.getvalue(), original_height
+
+
 def reading_order(details: list[dict], detections: list[dict], height: int) -> list[dict]:
     """Sort the brick classes the way the eye reads the photo: left to
     right, then down.
@@ -493,7 +562,13 @@ if uploaded_file is not None:
                 # session_state, or the first validation checkbox click
                 # below would make the results vanish.
                 st.session_state["analysis"] = response.json()
-                st.session_state["analysis_image"] = uploaded_file.getvalue()
+                (
+                    st.session_state["annotated_jpeg"],
+                    st.session_state["photo_height"],
+                ) = annotate(
+                    uploaded_file.getvalue(),
+                    st.session_state["analysis"].get("detections", []),
+                )
 
                 # Fresh analysis: reset the validation state
                 for key in list(st.session_state):
@@ -542,68 +617,8 @@ if "analysis" in st.session_state:
     # BOUNDING BOXES
     # ------------------------------------------------
 
-    annotated_image = upright_image(st.session_state["analysis_image"])
-
-    draw = ImageDraw.Draw(annotated_image)
-
-    # Same style as app/detection/predict.py's draw_boxes():
-    # labels and line widths SCALE WITH THE PHOTO (a 4000px
-    # iPhone shot gets labels a room can read, a 500px render
-    # gets small ones), each label sits on a filled background
-    # so it never blends into a busy photo, and the colour is
-    # a vivid green -- red vanished against warm-coloured
-    # bricks and its bare text was unreadable.
-    # Keep in sync with params.ANNOTATION_COLOR (not imported:
-    # the slim Streamlit container has no dotenv, and one
-    # colour is not worth widening that container for).
-    annotation_color = "#00E676"
-
-    shortest = min(annotated_image.size)
-    font_size = max(16, shortest // 30)
-    line_width = max(4, shortest // 300)
-    pad = max(2, font_size // 5)
-    font = ImageFont.load_default(size=font_size)
-
-    for detection in result.get("detections", []):
-
-        x1, y1, x2, y2 = detection["bbox"]
-
-        part_id = detection["part_id"]
-        confidence = detection[
-            "classification_confidence"
-        ]
-
-        label = f"{part_id} {confidence:.0%}"
-
-        draw.rectangle(
-            [x1, y1, x2, y2],
-            outline=annotation_color,
-            width=line_width,
-        )
-
-        # Label just above the box; just below it when the box
-        # touches the top edge of the photo.
-        text_width = draw.textlength(label, font=font)
-        text_y = y1 - font_size - 2 * pad - line_width
-        if text_y < 0:
-            text_y = y2 + line_width
-
-        draw.rectangle(
-            [
-                x1,
-                text_y,
-                x1 + text_width + 2 * pad,
-                text_y + font_size + 2 * pad,
-            ],
-            fill=annotation_color,
-        )
-
-        draw.text(
-            (x1 + pad, text_y + pad),
-            label,
-            fill="black",
-            font=font,
-        )
+    annotated_jpeg = st.session_state["annotated_jpeg"]
+    photo_height = st.session_state["photo_height"]
 
     # Name the classifier the API actually used (echoed in the response),
     # so a screenshot is never ambiguous about which model produced it.
@@ -630,7 +645,7 @@ if "analysis" in st.session_state:
         st.subheader("Pièces détectées")
 
         st.image(
-            annotated_image,
+            annotated_jpeg,
             caption=caption,
             use_container_width=True,
         )
@@ -655,7 +670,7 @@ if "analysis" in st.session_state:
             details = reading_order(
                 details,
                 result.get("detections", []),
-                annotated_image.height,
+                photo_height,
             )
 
         if details:
