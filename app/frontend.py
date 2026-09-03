@@ -101,7 +101,7 @@ st.markdown(
     /* Checklist packed tight so ten bricks plus the button fit in one
        screen next to the photo: small row gap, labels never wrap. */
     div[data-testid="stForm"] div[data-testid="stVerticalBlock"] {
-        gap: 0.35rem;
+        gap: var(--lf-row-gap);
     }
     div[data-testid="stCheckbox"] label {
         white-space: nowrap;
@@ -116,21 +116,31 @@ st.markdown(
         align-self: flex-start;
     }
     /* One shared height for the pane: the photo is capped to it (a
-       portrait phone shot would otherwise run off the screen), and the
-       checklist rows are spread over the same height minus the "Tout
-       correct" line, so the last brick ends level with the photo's
-       bottom edge. */
-    :root { --lf-pane-h: calc(100vh - 11rem); }
+       portrait phone shot would otherwise run off the screen) and
+       left-aligned under its title. The catalog pictures in the
+       checklist are sized so that N rows plus their gaps add up to
+       the same height minus the "Tout correct" line -- the last brick
+       ends level with the photo's bottom edge. --lf-rows (N) is set
+       per analysis next to the list. */
+    :root { --lf-pane-h: calc(100vh - 11rem); --lf-rows: 10; --lf-row-gap: 0.35rem; }
+    div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] {
+        justify-content: flex-start;
+        align-items: flex-start;
+    }
     div[data-testid="stColumn"]:has(.lf-breakout) div[data-testid="stImage"] img {
         width: auto !important;
         max-width: 100%;
         max-height: var(--lf-pane-h);
         object-fit: contain;
     }
-    .st-key-brick_rows > div > div[data-testid="stVerticalBlock"],
-    .st-key-brick_rows > div[data-testid="stVerticalBlock"] {
-        height: calc(var(--lf-pane-h) - 3.5rem);
-        justify-content: space-between;
+    .st-key-brick_rows div[data-testid="stImage"] img {
+        width: auto !important;
+        height: calc(
+            (var(--lf-pane-h) - 3.5rem - (var(--lf-rows) - 1) * var(--lf-row-gap))
+            / var(--lf-rows)
+        );
+        max-width: 100%;
+        object-fit: contain;
     }
     .side-mascot { transition: opacity 0.4s ease; }
     </style>
@@ -611,8 +621,13 @@ if "analysis" in st.session_state:
             with st.form("brick_validation", border=False):
 
                 # key= gives the container a .st-key-brick_rows class,
-                # the hook the CSS uses to stretch the rows over the
-                # photo's height (the submit button stays outside it).
+                # the hook the CSS uses to size the catalog pictures so
+                # the rows fill the photo's height (the submit button
+                # stays outside it). The row count feeds that formula.
+                st.markdown(
+                    f"<style>:root{{--lf-rows:{len(details)}}}</style>",
+                    unsafe_allow_html=True,
+                )
                 rows = st.container(key="brick_rows")
 
                 for part in details:
